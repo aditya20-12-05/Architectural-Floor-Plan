@@ -1,0 +1,542 @@
+:root {
+  /* Light "white-paper" blueprint palette */
+  --paper: #ffffff; /* page + scene background */
+  --ink: #0e3a5c; /* primary text + line-work (navy) */
+  --ink-soft: #3f6d96; /* secondary text (mid blue) */
+  --ink-mute: #8aa3bd; /* muted */
+  --accent: #c2613f; /* flagship / selected (clay) */
+  --accent-ink: #9c4a2c; /* darker clay for text on light */
+
+  --hair: rgba(14, 58, 92, 0.16); /* hairline borders */
+  --hair-strong: rgba(14, 58, 92, 0.28);
+  --panel: #f3f7fb; /* control panel background */
+  --field: #ffffff; /* input background */
+  --field-edge: rgba(14, 58, 92, 0.22);
+  --overlay: rgba(255, 255, 255, 0.93); /* schedule / title block */
+  --card: #ffffff;
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ---------------- Control panel (left) ---------------- */
+.panel {
+  width: 348px;
+  min-width: 348px;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--panel);
+  border-right: 1px solid var(--hair);
+  padding: 18px 16px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.panel::-webkit-scrollbar {
+  width: 8px;
+}
+.panel::-webkit-scrollbar-thumb {
+  background: var(--hair-strong);
+  border-radius: 4px;
+}
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 0;
+}
+.panel-sub {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 2px 0 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.section > h3 {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 96px;
+  align-items: center;
+  gap: 8px;
+}
+.field-row label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+input[type='text'],
+input[type='number'] {
+  width: 100%;
+  background: var(--field);
+  border: 1px solid var(--field-edge);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  outline: none;
+}
+input[type='number'] {
+  text-align: right;
+}
+input[type='text']:focus,
+input[type='number']:focus {
+  border-color: var(--ink-soft);
+}
+input.flagship-focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ---------------- Readout ---------------- */
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.readout .row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-soft);
+}
+.readout .row b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.balance {
+  margin-top: 4px;
+  padding: 7px 9px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  border: 1px solid;
+}
+.balance.ok {
+  color: var(--ink-soft);
+  border-color: var(--hair);
+  background: rgba(63, 109, 150, 0.08);
+}
+.balance.warn {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  background: rgba(194, 97, 63, 0.12);
+}
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(14, 58, 92, 0.08);
+  overflow: hidden;
+  border: 1px solid var(--hair);
+}
+.bar > span {
+  display: block;
+  height: 100%;
+  background: var(--ink-soft);
+}
+.bar > span.over {
+  background: var(--accent);
+}
+
+/* ---------------- Rooms list ---------------- */
+.rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.room-item {
+  border: 1px solid var(--hair);
+  border-radius: 4px;
+  padding: 8px;
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.room-item.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.room-item.dragging {
+  opacity: 0.4;
+}
+.room-item .room-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.room-no {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  min-width: 22px;
+}
+.room-no.flagship {
+  color: var(--accent);
+}
+.drag-handle {
+  cursor: grab;
+  color: var(--ink-mute);
+  font-size: 13px;
+  padding: 0 2px;
+  user-select: none;
+}
+.room-item input[type='text'].room-name {
+  flex: 1;
+}
+.room-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  align-items: center;
+}
+.mini-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  display: block;
+  margin-bottom: 3px;
+}
+select {
+  width: 100%;
+  background: var(--field);
+  border: 1px solid var(--field-edge);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 6px;
+  border-radius: 3px;
+  outline: none;
+}
+.room-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------------- Buttons ---------------- */
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1px solid var(--field-edge);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  padding: 7px 10px;
+  transition: all 0.12s ease;
+}
+button:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+button.primary:hover {
+  filter: brightness(1.06);
+  color: #fff;
+}
+button.ghost {
+  padding: 5px 8px;
+  font-size: 10px;
+}
+button.danger:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-row > button {
+  flex: 1;
+  text-align: center;
+}
+
+/* ---------------- Toggles ---------------- */
+.toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  user-select: none;
+}
+.toggle input {
+  appearance: none;
+  width: 30px;
+  height: 16px;
+  border-radius: 9px;
+  background: rgba(14, 58, 92, 0.12);
+  border: 1px solid var(--field-edge);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex: none;
+}
+.toggle input::after {
+  content: '';
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  top: 1.5px;
+  left: 2px;
+  transition: transform 0.15s, background 0.15s;
+}
+.toggle input:checked {
+  background: rgba(194, 97, 63, 0.28);
+  border-color: var(--accent);
+}
+.toggle input:checked::after {
+  transform: translateX(13px);
+  background: var(--accent);
+}
+
+/* ---------------- Stage (canvas + overlays) ---------------- */
+.stage {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper);
+}
+.stage canvas {
+  display: block;
+  outline: none;
+}
+
+/* Camera toolbar */
+.cam-toolbar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  gap: 8px;
+  z-index: 5;
+}
+.cam-toolbar button {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--hair-strong);
+  backdrop-filter: blur(4px);
+}
+.cam-toolbar button:hover {
+  background: #fff;
+}
+
+/* Title block overlay */
+.title-block {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 280px;
+  background: var(--overlay);
+  border: 1px solid var(--ink);
+  backdrop-filter: blur(3px);
+  z-index: 4;
+  font-family: var(--font-mono);
+}
+.title-block .tb-row {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  border-bottom: 1px solid var(--hair-strong);
+}
+.title-block .tb-row:last-child {
+  border-bottom: none;
+}
+.title-block .tb-key {
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  color: var(--ink-soft);
+  padding: 6px 8px;
+  border-right: 1px solid var(--hair-strong);
+  text-transform: uppercase;
+}
+.title-block .tb-val {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  padding: 6px 8px;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.title-block .tb-title {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  padding: 8px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+  text-align: center;
+}
+
+/* Room schedule overlay */
+.schedule {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 232px;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  background: var(--overlay);
+  border: 1px solid var(--hair-strong);
+  backdrop-filter: blur(3px);
+  z-index: 4;
+  padding: 10px 12px;
+}
+.schedule h4 {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 0 0 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 6px;
+}
+.schedule .sched-group {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 10px 0 4px;
+  font-weight: 600;
+}
+.schedule table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+}
+.schedule th {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  text-align: left;
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--hair);
+}
+.schedule th.num,
+.schedule td.num {
+  text-align: right;
+  width: 46px;
+}
+.schedule td {
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--hair);
+  cursor: pointer;
+}
+.schedule tr.flagship td,
+.schedule tr.selected td {
+  color: var(--accent);
+}
+.schedule tr.selected td {
+  background: rgba(194, 97, 63, 0.12);
+}
+.schedule tr:hover td {
+  color: var(--ink);
+}
+.schedule tfoot td {
+  color: var(--ink);
+  font-weight: 600;
+  border-top: 1px solid var(--hair-strong);
+  border-bottom: none;
+}
+
+/* Hidden file input */
+.hidden-file {
+  display: none;
+}
+
+/* Floating room label (drei Html fallback, sprites used by default) */
+.room-label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+}
+
+.footer-note {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+  line-height: 1.5;
+}
+.kbd {
+  font-family: var(--font-mono);
+  color: var(--ink-soft);
+}
