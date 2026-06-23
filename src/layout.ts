@@ -224,16 +224,9 @@ export function autoArrangeRooms(config: FloorConfig): Room[] {
 // ---------------------------------------------------------------------------
 // Magic Layout — a fresh, efficient, non-overlapping arrangement every call,
 // complete with its own walkways. Randomised across orientation, band count,
-// room distribution, sub-rows and corridor width so each run looks different.
+// distribution, room shapes (incl. L / T) and corridor width, and clipped to
+// the (possibly non-rectangular) plate outline so each run differs and fits.
 // ---------------------------------------------------------------------------
-
-interface MagicCell {
-  id: string
-  u: number // centre along the width axis
-  v: number // centre along the depth axis (band centre)
-  w: number // size along width axis
-  d: number // size along depth axis
-}
 
 function shuffled<T>(arr: T[]): T[] {
   const a = arr.slice()
@@ -244,27 +237,106 @@ function shuffled<T>(arr: T[]): T[] {
   return a
 }
 
-// Lay a row of rooms edge-to-edge along the width axis (area-preserving),
-// compressing to fit the slab width if they would overflow.
-function packRow(list: Room[], vCenter: number, rowD: number, Wu: number, out: MagicCell[]): void {
-  if (list.length === 0 || rowD <= 0) return
-  let widths = list.map((r) => Math.max(r.area, 1) / rowD)
-  let total = widths.reduce((s, w) => s + w, 0)
-  if (total > Wu * 0.98) {
-    const k = (Wu * 0.98) / total
-    widths = widths.map((w) => w * k)
-    total = Wu * 0.98
+// Largest inside-interval of a polygon (u-v space) along the scanline v = const.
+function spanAtV(poly: Pt[], v: number): [number, number] | null {
+  const xs: number[] = []
+  for (let i = 0; i < poly.length; i++) {
+    const [u1, v1] = poly[i]
+    const [u2, v2] = poly[(i + 1) % poly.length]
+    if ((v1 <= v && v2 > v) || (v2 <= v && v1 > v)) {
+      xs.push(u1 + ((v - v1) / (v2 - v1)) * (u2 - u1))
+    }
   }
-  let u = -total / 2
-  for (let i = 0; i < list.length; i++) {
-    const w = widths[i]
-    out.push({ id: list[i].id, u: u + w / 2, v: vCenter, w, d: rowD })
-    u += w
+  if (xs.length < 2) return null
+  xs.sort((a, b) => a - b)
+  let best: [number, number] | null = null
+  let bestLen = -1
+  for (let i = 0; i + 1 < xs.length; i += 2) {
+    const len = xs[i + 1] - xs[i]
+    if (len > bestLen) {
+      bestLen = len
+      best = [xs[i], xs[i + 1]]
+    }
+  }
+  return best
+}
+
+// Translate a polygon so its bounding box is centred on the origin.
+function bboxCenter(pts: Pt[]): Pt[] {
+  const bb = bbox(pts)
+  const cx = (bb.minX + bb.maxX) / 2
+  const cz = (bb.minZ + bb.maxZ) / 2
+  return pts.map(([x, z]) => [x - cx, z - cz] as Pt)
+}
+
+interface MagicItem {
+  name: string
+  points: Pt[] // normalized unit-area, bbox-centred, in (u,v)
+  bw: number // size along width axis
+  bh: number // size along depth axis (<= bandD)
+}
+
+// Pick a footprint for a room within a band of depth bandD: mostly full-depth
+// rectangles, with some wide/shallow rectangles and the occasional L / T.
+function roomShapeFor(room: Room, bandD: number): MagicItem {
+  const s = Math.sqrt(Math.max(room.area, 1))
+  const roll = Math.random()
+  if (roll < 0.2) {
+    const preset = Math.random() < 0.5 ? shapeByName('L-Shape') : shapeByName('T-Shape')
+    const bb = bbox(preset.points)
+    const bh = (bb.maxZ - bb.minZ) * s
+    const bw = (bb.maxX - bb.minX) * s
+    if (bh <= bandD) return { name: preset.name, points: bboxCenter(preset.points), bw, bh }
+  }
+  const bh = roll < 0.42 ? bandD * (0.55 + Math.random() * 0.3) : bandD
+  const bw = Math.max(room.area, 1) / bh
+  const rectPts: Pt[] = [
+    [-bw / 2, -bh / 2],
+    [bw / 2, -bh / 2],
+    [bw / 2, bh / 2],
+    [-bw / 2, bh / 2],
+  ]
+  const aspect = bw / bh
+  const name = aspect > 1.35 ? 'Wide' : aspect < 0.74 ? 'Tall' : 'Square'
+  return { name, points: normalizeShape(rectPts), bw, bh }
+}
+
+interface BandInfo {
+  vCenter: number
+  align: number // -1 toward smaller v, +1 toward larger v, 0 centre
+  uMin: number
+  uMax: number
+  cap: number
+  rooms: Room[]
+}
+
+interface MagicCell {
+  id: string
+  u: number
+  v: number
+  name: string
+  points: Pt[]
+}
+
+// Lay a band's rooms left-to-right within its plate span, flush to the corridor.
+function packBand(bd: BandInfo, bandD: number, cells: MagicCell[]): void {
+  const items = bd.rooms.map((r) => ({ r, ...roomShapeFor(r, bandD) }))
+  const total = items.reduce((s, it) => s + it.bw, 0)
+  let u = (bd.uMin + bd.uMax) / 2 - total / 2
+  for (const it of items) {
+    const v =
+      bd.align < 0
+        ? bd.vCenter - bandD / 2 + it.bh / 2
+        : bd.align > 0
+        ? bd.vCenter + bandD / 2 - it.bh / 2
+        : bd.vCenter
+    cells.push({ id: it.r.id, u: u + it.bw / 2, v, name: it.name, points: it.points })
+    u += it.bw
   }
 }
 
 export function magicLayout(config: FloorConfig): { rooms: Room[]; walkways: Walkway[] } {
-  const { slabW, slabD } = slabShape(config)
+  const { poly: slabPoly, slabW, slabD } = slabShape(config)
   const placed = config.rooms.filter((r) => r.area > 0)
   if (placed.length === 0) return { rooms: config.rooms, walkways: [] }
 
@@ -272,22 +344,50 @@ export function magicLayout(config: FloorConfig): { rooms: Room[]; walkways: Wal
   const vertical = Math.random() < 0.5
   const Wu = vertical ? slabD : slabW
   const Dv = vertical ? slabW : slabD
+  const plateUV: Pt[] = slabPoly.map(([x, z]) => (vertical ? [z, x] : [x, z]) as Pt)
 
-  const nBands = placed.length >= 6 && Math.random() < 0.45 ? 3 : 2
-  const corridorW = 4 + Math.random() * 3
+  const corridorW = 4 + Math.random() * 2.5
+  const big = placed.length
+  const pool0 = big >= 12 ? [2, 3, 3, 4] : big >= 7 ? [2, 2, 3, 3] : [2, 2]
+  let nBands = pool0[Math.floor(Math.random() * pool0.length)]
+  // keep bands a sensible depth
+  while (nBands > 2 && (Dv - (nBands - 1) * corridorW) / nBands < 11) nBands--
+  const bandD = (Dv - (nBands - 1) * corridorW) / nBands
+
+  // bands with their plate-clipped width spans + which side faces a corridor
+  const bandData: BandInfo[] = []
+  for (let b = 0; b < nBands; b++) {
+    const vCenter = -Dv / 2 + bandD / 2 + b * (bandD + corridorW)
+    const span = spanAtV(plateUV, vCenter) ?? [-Wu / 2, Wu / 2]
+    const align = nBands === 1 ? 0 : b === 0 ? 1 : b === nBands - 1 ? -1 : 0
+    bandData.push({
+      vCenter,
+      align,
+      uMin: span[0],
+      uMax: span[1],
+      cap: Math.max(span[1] - span[0], 1) * bandD,
+      rooms: [],
+    })
+  }
+
+  // distribute rooms into bands proportional to each band's capacity
   const modes = ['balanced', 'shuffled', 'category', 'reversed'] as const
   const mode = modes[Math.floor(Math.random() * modes.length)]
-
-  // distribute rooms into bands
-  const bands: Room[][] = Array.from({ length: nBands }, () => [])
+  const totalCap = bandData.reduce((s, b) => s + b.cap, 0) || 1
   if (mode === 'balanced') {
-    // longest-processing-time: each (area desc) goes to the lightest band
     const sorted = placed.slice().sort((a, b) => b.area - a.area)
-    const load = new Array(nBands).fill(0)
+    const load = bandData.map(() => 0)
     for (const r of sorted) {
       let m = 0
-      for (let i = 1; i < nBands; i++) if (load[i] < load[m]) m = i
-      bands[m].push(r)
+      let best = -Infinity
+      for (let i = 0; i < bandData.length; i++) {
+        const rem = bandData[i].cap - load[i]
+        if (rem > best) {
+          best = rem
+          m = i
+        }
+      }
+      bandData[m].rooms.push(r)
       load[m] += r.area
     }
   } else {
@@ -295,85 +395,77 @@ export function magicLayout(config: FloorConfig): { rooms: Room[]; walkways: Wal
     if (mode === 'reversed') pool.reverse()
     else if (mode === 'shuffled') pool = shuffled(pool)
     else pool.sort((a, b) => (a.category === b.category ? 0 : a.category === 'Billable' ? -1 : 1))
-    const totalA = pool.reduce((s, r) => s + r.area, 0)
+    const totalArea = pool.reduce((s, r) => s + r.area, 0)
+    const target = bandData.map((b) => (totalArea * b.cap) / totalCap)
     let bi = 0
-    let acc = 0
+    let load = 0
     for (const r of pool) {
-      bands[bi].push(r)
-      acc += r.area
-      if (bi < nBands - 1 && acc >= (totalA * (bi + 1)) / nBands) bi++
+      bandData[bi].rooms.push(r)
+      load += r.area
+      if (bi < bandData.length - 1 && load >= target[bi]) {
+        bi++
+        load = 0
+      }
     }
   }
 
-  const bandD = (Dv - (nBands - 1) * corridorW) / nBands
   const cells: MagicCell[] = []
-  for (let b = 0; b < nBands; b++) {
-    const vCenter = -Dv / 2 + bandD / 2 + b * (bandD + corridorW)
-    const list = bands[b]
-    // sometimes split a band into two shallow sub-rows for shape variety
-    const twoRows = list.length >= 4 && bandD / 2 >= 6 && Math.random() < 0.35
-    if (twoRows) {
-      const subD = bandD / 2
-      const t = list.reduce((s, r) => s + r.area, 0) / 2
-      const top: Room[] = []
-      const bot: Room[] = []
-      let a = 0
-      for (const r of list) {
-        if (a < t) {
-          top.push(r)
-          a += r.area
-        } else bot.push(r)
-      }
-      packRow(top, vCenter - subD / 2, subD, Wu, cells)
-      packRow(bot, vCenter + subD / 2, subD, Wu, cells)
-    } else {
-      packRow(list, vCenter, bandD, Wu, cells)
-    }
-  }
+  for (const bd of bandData) packBand(bd, bandD, cells)
 
   const byId = new Map(cells.map((c) => [c.id, c]))
   const rooms = config.rooms.map((r): Room => {
     const c = byId.get(r.id)
     if (!c) return r
-    const bx = vertical ? c.d : c.w
-    const bz = vertical ? c.w : c.d
-    const rect: Pt[] = [
-      [-bx / 2, -bz / 2],
-      [bx / 2, -bz / 2],
-      [bx / 2, bz / 2],
-      [-bx / 2, bz / 2],
-    ]
-    const aspect = bx / bz
-    const name = aspect > 1.3 ? 'Wide' : aspect < 0.77 ? 'Tall' : 'Square'
+    const pts: Pt[] = vertical ? c.points.map(([u, v]) => [v, u] as Pt) : c.points
     return {
       ...r,
       px: vertical ? c.v : c.u,
       pz: vertical ? c.u : c.v,
       rot: 0,
-      shapeName: name,
-      shapePoints: normalizeShape(rect),
+      shapeName: c.name,
+      shapePoints: pts,
       doorEdge: undefined,
       doorT: undefined,
     }
   })
 
-  // walkways down each band gap (+ a connector spine when there are 3 bands)
+  // --- walkways: a plate-fitted corridor in every band gap, tied together by
+  // connector spine(s) into one circulation network ------------------------
   const map = (u: number, v: number): { x: number; z: number } =>
     vertical ? { x: v, z: u } : { x: u, z: v }
-  const walkways: Walkway[] = []
-  const half = Wu * 0.48
-  const gapVs: number[] = []
-  for (let g = 0; g < nBands - 1; g++) {
-    const vGap = -Dv / 2 + (g + 1) * bandD + g * corridorW + corridorW / 2
-    gapVs.push(vGap)
-    const a = map(-half, vGap)
-    const b = map(half, vGap)
-    walkways.push({ id: uid(), x1: a.x, z1: a.z, x2: b.x, z2: b.z, width: corridorW })
+  const seg = (u1: number, v1: number, u2: number, v2: number, w: number): Walkway => {
+    const a = map(u1, v1)
+    const b = map(u2, v2)
+    return { id: uid(), x1: a.x, z1: a.z, x2: b.x, z2: b.z, width: w }
   }
-  if (gapVs.length >= 2) {
-    const a = map(0, gapVs[0])
-    const b = map(0, gapVs[gapVs.length - 1])
-    walkways.push({ id: uid(), x1: a.x, z1: a.z, x2: b.x, z2: b.z, width: corridorW * 0.85 })
+  const walkways: Walkway[] = []
+  const gaps: { v: number; uMin: number; uMax: number }[] = []
+  for (let g = 0; g < nBands - 1; g++) {
+    const vGap = bandData[g].vCenter + bandD / 2 + corridorW / 2
+    const span = spanAtV(plateUV, vGap) ?? [-Wu / 2, Wu / 2]
+    const inset = Math.min(2, (span[1] - span[0]) * 0.04)
+    walkways.push(seg(span[0] + inset, vGap, span[1] - inset, vGap, corridorW))
+    gaps.push({ v: vGap, uMin: span[0], uMax: span[1] })
+  }
+  if (gaps.length >= 2) {
+    const cw = corridorW * 0.8
+    const uLo = Math.max(...gaps.map((g) => g.uMin))
+    const uHi = Math.min(...gaps.map((g) => g.uMax))
+    if (uLo < uHi) {
+      const spines = gaps.length >= 3 && Math.random() < 0.5 ? 2 : 1
+      for (let i = 0; i < spines; i++) {
+        const f = spines === 1 ? 0.5 : 0.27 + i * 0.46
+        const cu = uLo + (uHi - uLo) * f
+        walkways.push(seg(cu, gaps[0].v, cu, gaps[gaps.length - 1].v, cw))
+      }
+    } else {
+      for (let i = 0; i + 1 < gaps.length; i++) {
+        const lo = Math.max(gaps[i].uMin, gaps[i + 1].uMin)
+        const hi = Math.min(gaps[i].uMax, gaps[i + 1].uMax)
+        const cu = lo < hi ? (lo + hi) / 2 : (gaps[i].uMin + gaps[i].uMax) / 2
+        walkways.push(seg(cu, gaps[i].v, cu, gaps[i + 1].v, cw))
+      }
+    }
   }
 
   return { rooms, walkways }
