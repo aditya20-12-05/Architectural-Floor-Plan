@@ -42,12 +42,9 @@ export interface TitleBlockInfo {
 
 export interface Walkway {
   id: string
-  // A path segment drawn start -> end (ft), rendered as a rounded corridor of
-  // the given width. Chain several to build an L / U / branching circulation.
-  x1: number
-  z1: number
-  x2: number
-  z2: number
+  // Centreline path in world XZ (>= 2 points), rendered as a smooth, rounded
+  // corridor of the given width. Two points = a straight run; more = a curve.
+  points: [number, number][]
   width: number // ft
 }
 

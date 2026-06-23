@@ -7,6 +7,81 @@ import { PALETTE, uid, DEFAULT_WALK_W } from '../constants'
 
 const MIN_LEN = 3
 const snap = (v: number) => Math.round(v)
+type Vec2 = [number, number]
+
+// Catmull-Rom sampling through the path points (straight for two points).
+function samplePath(pts: Vec2[], seg = 12): Vec2[] {
+  if (pts.length <= 2) return pts.slice()
+  const out: Vec2[] = []
+  const n = pts.length
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = pts[i === 0 ? 0 : i - 1]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[i + 2 >= n ? n - 1 : i + 2]
+    for (let s = 0; s < seg; s++) {
+      const t = s / seg
+      const t2 = t * t
+      const t3 = t2 * t
+      const x =
+        0.5 *
+        (2 * p1[0] +
+          (-p0[0] + p2[0]) * t +
+          (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 +
+          (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3)
+      const z =
+        0.5 *
+        (2 * p1[1] +
+          (-p0[1] + p2[1]) * t +
+          (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 +
+          (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)
+      out.push([x, z])
+    }
+  }
+  out.push(pts[n - 1])
+  return out
+}
+
+// Stadium ribbon outline (rounded caps) along a sampled centreline, world (x,z).
+function ribbonOutline(center: Vec2[], width: number, capSeg = 8): Vec2[] {
+  const n = center.length
+  if (n < 2) return []
+  const hw = Math.max(width / 2, 0.1)
+  const tan = (i: number): Vec2 => {
+    const a = center[Math.max(0, i - 1)]
+    const b = center[Math.min(n - 1, i + 1)]
+    const tx = b[0] - a[0]
+    const tz = b[1] - a[1]
+    const L = Math.hypot(tx, tz) || 1
+    return [tx / L, tz / L]
+  }
+  const T = center.map((_, i) => tan(i))
+  const N: Vec2[] = T.map((t) => [-t[1], t[0]])
+  const left: Vec2[] = center.map((c, i) => [c[0] + N[i][0] * hw, c[1] + N[i][1] * hw])
+  const right: Vec2[] = center.map((c, i) => [c[0] - N[i][0] * hw, c[1] - N[i][1] * hw])
+  const out: Vec2[] = []
+  for (const p of left) out.push(p)
+  // end cap: left -> right sweeping through +tangent
+  const eC = center[n - 1]
+  for (let s = 1; s < capSeg; s++) {
+    const a = (Math.PI * s) / capSeg
+    out.push([
+      eC[0] + (Math.cos(a) * N[n - 1][0] + Math.sin(a) * T[n - 1][0]) * hw,
+      eC[1] + (Math.cos(a) * N[n - 1][1] + Math.sin(a) * T[n - 1][1]) * hw,
+    ])
+  }
+  for (let i = n - 1; i >= 0; i--) out.push(right[i])
+  // start cap: right -> left sweeping through -tangent
+  const sC = center[0]
+  for (let s = 1; s < capSeg; s++) {
+    const a = (Math.PI * s) / capSeg
+    out.push([
+      sC[0] + (-Math.cos(a) * N[0][0] - Math.sin(a) * T[0][0]) * hw,
+      sC[1] + (-Math.cos(a) * N[0][1] - Math.sin(a) * T[0][1]) * hw,
+    ])
+  }
+  return out
+}
 
 interface Props {
   walkways: Walkway[]
@@ -15,40 +90,6 @@ interface Props {
   active: boolean
   onAdd: (w: Walkway) => void
   onRemove: (id: string) => void
-}
-
-interface Seg {
-  x1: number
-  z1: number
-  x2: number
-  z2: number
-}
-
-// Stadium ("capsule") outline in world XZ around the segment a->b.
-function capsulePoints(s: Seg, width: number, segs = 14): [number, number][] {
-  const dx = s.x2 - s.x1
-  const dz = s.z2 - s.z1
-  const L = Math.hypot(dx, dz) || 1
-  const ux = dx / L
-  const uz = dz / L
-  const nx = -uz
-  const nz = ux
-  const hw = Math.max(width / 2, 0.1)
-  const angN = Math.atan2(nz, nx)
-  const pts: [number, number][] = []
-  pts.push([s.x1 + nx * hw, s.z1 + nz * hw])
-  pts.push([s.x2 + nx * hw, s.z2 + nz * hw])
-  for (let i = 1; i < segs; i++) {
-    const t = angN - Math.PI * (i / segs)
-    pts.push([s.x2 + Math.cos(t) * hw, s.z2 + Math.sin(t) * hw])
-  }
-  pts.push([s.x2 - nx * hw, s.z2 - nz * hw])
-  pts.push([s.x1 - nx * hw, s.z1 - nz * hw])
-  for (let i = 1; i < segs; i++) {
-    const t = angN + Math.PI - Math.PI * (i / segs)
-    pts.push([s.x1 + Math.cos(t) * hw, s.z1 + Math.sin(t) * hw])
-  }
-  return pts
 }
 
 function WalkSeg({
@@ -60,18 +101,21 @@ function WalkSeg({
   active: boolean
   onRemove: (id: string) => void
 }) {
-  const pts = useMemo(() => capsulePoints(wk, wk.width), [wk])
+  const center = useMemo(() => samplePath(wk.points as Vec2[]), [wk.points])
   const geo = useMemo(() => {
+    const outline = ribbonOutline(center, wk.width)
     const shape = new THREE.Shape()
-    shape.moveTo(pts[0][0], pts[0][1])
-    for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1])
-    shape.closePath()
+    if (outline.length) {
+      shape.moveTo(outline[0][0], outline[0][1])
+      for (let i = 1; i < outline.length; i++) shape.lineTo(outline[i][0], outline[i][1])
+      shape.closePath()
+    }
     return new THREE.ShapeGeometry(shape)
-  }, [pts])
+  }, [center, wk.width])
   useEffect(() => () => geo.dispose(), [geo])
-  const outline = useMemo(
-    () => [...pts, pts[0]].map(([x, z]) => [x, 0.05, z] as [number, number, number]),
-    [pts]
+  const centerLine = useMemo(
+    () => center.map(([x, z]) => [x, 0.06, z] as [number, number, number]),
+    [center]
   )
   return (
     <group>
@@ -92,37 +136,24 @@ function WalkSeg({
       >
         <meshBasicMaterial color={PALETTE.accent} transparent opacity={0.1} side={THREE.DoubleSide} />
       </mesh>
-      <Line points={outline} color={PALETTE.accent} lineWidth={1} transparent opacity={0.5} />
-      {/* dashed centreline reads as a path */}
-      <Line
-        points={[
-          [wk.x1, 0.06, wk.z1],
-          [wk.x2, 0.06, wk.z2],
-        ]}
-        color={PALETTE.accent}
-        lineWidth={1.4}
-        dashed
-        dashSize={2.2}
-        gapSize={1.6}
-      />
+      <Line points={centerLine} color={PALETTE.accent} lineWidth={1.4} dashed dashSize={2.2} gapSize={1.6} />
     </group>
   )
 }
 
-function GhostSeg({ seg }: { seg: Seg }) {
-  const pts = useMemo(() => capsulePoints(seg, DEFAULT_WALK_W), [seg])
+function GhostSeg({ seg }: { seg: Vec2[] }) {
   const outline = useMemo(
-    () => [...pts, pts[0]].map(([x, z]) => [x, 0.07, z] as [number, number, number]),
-    [pts]
+    () =>
+      [...ribbonOutline(seg, DEFAULT_WALK_W), ribbonOutline(seg, DEFAULT_WALK_W)[0]].map(
+        ([x, z]) => [x, 0.07, z] as [number, number, number]
+      ),
+    [seg]
   )
   return (
     <group>
       <Line points={outline} color={PALETTE.accent} lineWidth={1.6} dashed dashSize={1.6} gapSize={1.1} />
       <Line
-        points={[
-          [seg.x1, 0.08, seg.z1],
-          [seg.x2, 0.08, seg.z2],
-        ]}
+        points={seg.map(([x, z]) => [x, 0.08, z] as [number, number, number])}
         color={PALETTE.accent}
         lineWidth={1}
       />
@@ -134,7 +165,7 @@ export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, on
   const camera = useThree((s) => s.camera)
   const gl = useThree((s) => s.gl)
   const drawRef = useRef({ drawing: false, sx: 0, sz: 0 })
-  const [ghost, setGhost] = useState<Seg | null>(null)
+  const [ghost, setGhost] = useState<Vec2[] | null>(null)
   const raycaster = useMemo(() => new THREE.Raycaster(), [])
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
   const cbRef = useRef(onAdd)
@@ -144,7 +175,10 @@ export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, on
     if (!active) return
     e.stopPropagation()
     drawRef.current = { drawing: true, sx: e.point.x, sz: e.point.z }
-    setGhost({ x1: e.point.x, z1: e.point.z, x2: e.point.x, z2: e.point.z })
+    setGhost([
+      [e.point.x, e.point.z],
+      [e.point.x, e.point.z],
+    ])
   }
 
   useEffect(() => {
@@ -158,20 +192,23 @@ export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, on
       const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera)
       if (raycaster.ray.intersectPlane(plane, pt)) {
-        setGhost({ x1: d.sx, z1: d.sz, x2: pt.x, z2: pt.z })
+        setGhost([
+          [d.sx, d.sz],
+          [pt.x, pt.z],
+        ])
       }
     }
     const onUp = () => {
       if (!drawRef.current.drawing) return
       drawRef.current.drawing = false
       setGhost((g) => {
-        if (g && Math.hypot(g.x2 - g.x1, g.z2 - g.z1) >= MIN_LEN) {
+        if (g && Math.hypot(g[1][0] - g[0][0], g[1][1] - g[0][1]) >= MIN_LEN) {
           cbRef.current({
             id: uid(),
-            x1: snap(g.x1),
-            z1: snap(g.z1),
-            x2: snap(g.x2),
-            z2: snap(g.z2),
+            points: [
+              [snap(g[0][0]), snap(g[0][1])],
+              [snap(g[1][0]), snap(g[1][1])],
+            ],
             width: DEFAULT_WALK_W,
           })
         }
@@ -192,7 +229,9 @@ export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, on
         <WalkSeg key={wk.id} wk={wk} active={active} onRemove={onRemove} />
       ))}
 
-      {ghost && Math.hypot(ghost.x2 - ghost.x1, ghost.z2 - ghost.z1) > 0.5 && <GhostSeg seg={ghost} />}
+      {ghost && Math.hypot(ghost[1][0] - ghost[0][0], ghost[1][1] - ghost[0][1]) > 0.5 && (
+        <GhostSeg seg={ghost} />
+      )}
 
       {active && (
         <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]} onPointerDown={startDraw}>

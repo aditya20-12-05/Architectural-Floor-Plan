@@ -119,7 +119,7 @@ export function computeLayout(config: FloorConfig): Layout {
   const corridorWidth = corridorW(config, slabW, slabD)
   const attractors: Pt[] =
     config.walkways.length > 0
-      ? config.walkways.map((w) => [(w.x1 + w.x2) / 2, (w.z1 + w.z2) / 2] as Pt)
+      ? config.walkways.flatMap((w) => w.points.map((p) => [p[0], p[1]] as Pt))
       : [[0, 0]]
 
   const footprints = config.rooms
@@ -308,6 +308,12 @@ interface BandInfo {
   uMax: number
   cap: number
   rooms: Room[]
+  // when set, rooms hug a curved corridor: door wall = curveFn(u), room sits
+  // curveSide * (corridorW/2 + depth/2) away from it
+  curveFn?: (u: number) => number
+  curveSide?: number
+  halfCorr?: number
+  roomDepth?: number
 }
 
 interface MagicCell {
@@ -316,21 +322,53 @@ interface MagicCell {
   v: number
   name: string
   points: Pt[]
+  doorEdge: number
 }
 
-// Lay a band's rooms left-to-right within its plate span, flush to the corridor.
+// Polygon edge whose midpoint is furthest along the corridor direction (dirV).
+function facingEdge(points: Pt[], dirV: number): number {
+  let best = 0
+  let bestVal = -Infinity
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]
+    const b = points[(i + 1) % points.length]
+    const mv = ((a[1] + b[1]) / 2) * dirV
+    if (mv > bestVal) {
+      bestVal = mv
+      best = i
+    }
+  }
+  return best
+}
+
+// Lay a band's rooms left-to-right within its plate span, flush to the corridor,
+// each room's door set to the wall that faces that corridor.
 function packBand(bd: BandInfo, bandD: number, cells: MagicCell[]): void {
-  const items = bd.rooms.map((r) => ({ r, ...roomShapeFor(r, bandD) }))
+  const doorDir = bd.align !== 0 ? bd.align : 1
+  const items = bd.rooms.map((r) => ({ r, ...roomShapeFor(r, bd.roomDepth ?? bandD) }))
   const total = items.reduce((s, it) => s + it.bw, 0)
   let u = (bd.uMin + bd.uMax) / 2 - total / 2
   for (const it of items) {
-    const v =
-      bd.align < 0
-        ? bd.vCenter - bandD / 2 + it.bh / 2
-        : bd.align > 0
-        ? bd.vCenter + bandD / 2 - it.bh / 2
-        : bd.vCenter
-    cells.push({ id: it.r.id, u: u + it.bw / 2, v, name: it.name, points: it.points })
+    const ru = u + it.bw / 2
+    let v: number
+    if (bd.curveFn) {
+      v = bd.curveFn(ru) + (bd.curveSide ?? 0) * ((bd.halfCorr ?? 0) + it.bh / 2)
+    } else {
+      v =
+        bd.align < 0
+          ? bd.vCenter - bandD / 2 + it.bh / 2
+          : bd.align > 0
+          ? bd.vCenter + bandD / 2 - it.bh / 2
+          : bd.vCenter
+    }
+    cells.push({
+      id: it.r.id,
+      u: ru,
+      v,
+      name: it.name,
+      points: it.points,
+      doorEdge: facingEdge(it.points, doorDir),
+    })
     u += it.bw
   }
 }
@@ -348,7 +386,7 @@ export function magicLayout(config: FloorConfig): { rooms: Room[]; walkways: Wal
 
   const corridorW = 4 + Math.random() * 2.5
   const big = placed.length
-  const pool0 = big >= 12 ? [2, 3, 3, 4] : big >= 7 ? [2, 2, 3, 3] : [2, 2]
+  const pool0 = big >= 12 ? [2, 2, 3, 3, 4] : big >= 7 ? [2, 2, 2, 3] : [2, 2]
   let nBands = pool0[Math.floor(Math.random() * pool0.length)]
   // keep bands a sensible depth
   while (nBands > 2 && (Dv - (nBands - 1) * corridorW) / nBands < 11) nBands--
@@ -409,6 +447,31 @@ export function magicLayout(config: FloorConfig): { rooms: Room[]; walkways: Wal
     }
   }
 
+  // 2-band layouts get a gently curved corridor that the rooms hug, so the
+  // walkway visibly bends while every door still meets it.
+  let curvedGap: { fn: (u: number) => number; u0: number; u1: number } | null = null
+  if (nBands === 2) {
+    const vGap = bandData[0].vCenter + bandD / 2 + corridorW / 2
+    const sp = spanAtV(plateUV, vGap) ?? [-Wu / 2, Wu / 2]
+    // a consistently visible bow (never near-zero), direction random
+    const amp =
+      (Math.random() < 0.5 ? -1 : 1) * (bandD * 0.16 + Math.random() * bandD * 0.12)
+    const u0 = sp[0]
+    const u1 = sp[1]
+    const fn = (u: number): number => {
+      const t = Math.min(1, Math.max(0, (u - u0) / (u1 - u0 || 1)))
+      return vGap + amp * Math.sin(Math.PI * t)
+    }
+    curvedGap = { fn, u0, u1 }
+    for (const side of [0, 1]) {
+      bandData[side].curveFn = fn
+      bandData[side].curveSide = side === 0 ? -1 : 1
+      bandData[side].halfCorr = corridorW / 2
+      // shallower rooms leave room for the bow to stay inside the plate
+      bandData[side].roomDepth = Math.max(8, bandD - Math.abs(amp))
+    }
+  }
+
   const cells: MagicCell[] = []
   for (const bd of bandData) packBand(bd, bandD, cells)
 
@@ -424,28 +487,44 @@ export function magicLayout(config: FloorConfig): { rooms: Room[]; walkways: Wal
       rot: 0,
       shapeName: c.name,
       shapePoints: pts,
-      doorEdge: undefined,
-      doorT: undefined,
+      doorEdge: c.doorEdge,
+      doorT: 0.5,
     }
   })
 
   // --- walkways: a plate-fitted corridor in every band gap, tied together by
   // connector spine(s) into one circulation network ------------------------
-  const map = (u: number, v: number): { x: number; z: number } =>
-    vertical ? { x: v, z: u } : { x: u, z: v }
-  const seg = (u1: number, v1: number, u2: number, v2: number, w: number): Walkway => {
-    const a = map(u1, v1)
-    const b = map(u2, v2)
-    return { id: uid(), x1: a.x, z1: a.z, x2: b.x, z2: b.z, width: w }
-  }
+  const map = (u: number, v: number): Pt => (vertical ? [v, u] : [u, v])
+  const pathW = (uv: Pt[], w: number): Walkway => ({
+    id: uid(),
+    points: uv.map(([u, v]) => map(u, v)),
+    width: w,
+  })
   const walkways: Walkway[] = []
   const gaps: { v: number; uMin: number; uMax: number }[] = []
-  for (let g = 0; g < nBands - 1; g++) {
-    const vGap = bandData[g].vCenter + bandD / 2 + corridorW / 2
-    const span = spanAtV(plateUV, vGap) ?? [-Wu / 2, Wu / 2]
-    const inset = Math.min(2, (span[1] - span[0]) * 0.04)
-    walkways.push(seg(span[0] + inset, vGap, span[1] - inset, vGap, corridorW))
-    gaps.push({ v: vGap, uMin: span[0], uMax: span[1] })
+  if (curvedGap) {
+    // sample the curve into a smooth corridor path
+    const inset = Math.min(2, (curvedGap.u1 - curvedGap.u0) * 0.04)
+    const a = curvedGap.u0 + inset
+    const b = curvedGap.u1 - inset
+    const pts: Pt[] = []
+    const N = 10
+    for (let i = 0; i <= N; i++) {
+      const u = a + ((b - a) * i) / N
+      pts.push([u, curvedGap.fn(u)])
+    }
+    walkways.push(pathW(pts, corridorW))
+  } else {
+    for (let g = 0; g < nBands - 1; g++) {
+      const vGap = bandData[g].vCenter + bandD / 2 + corridorW / 2
+      const span = spanAtV(plateUV, vGap) ?? [-Wu / 2, Wu / 2]
+      const inset = Math.min(2, (span[1] - span[0]) * 0.04)
+      const u0 = span[0] + inset
+      const u1 = span[1] - inset
+      // straight along the gap so it abuts the door walls on both sides
+      walkways.push(pathW([[u0, vGap], [u1, vGap]], corridorW))
+      gaps.push({ v: vGap, uMin: span[0], uMax: span[1] })
+    }
   }
   if (gaps.length >= 2) {
     const cw = corridorW * 0.8
@@ -456,14 +535,17 @@ export function magicLayout(config: FloorConfig): { rooms: Room[]; walkways: Wal
       for (let i = 0; i < spines; i++) {
         const f = spines === 1 ? 0.5 : 0.27 + i * 0.46
         const cu = uLo + (uHi - uLo) * f
-        walkways.push(seg(cu, gaps[0].v, cu, gaps[gaps.length - 1].v, cw))
+        const v0 = gaps[0].v
+        const v1 = gaps[gaps.length - 1].v
+        const sbow = (Math.random() - 0.5) * Math.min((uHi - uLo) * 0.25, 6)
+        walkways.push(pathW([[cu, v0], [cu + sbow, (v0 + v1) / 2], [cu, v1]], cw))
       }
     } else {
       for (let i = 0; i + 1 < gaps.length; i++) {
         const lo = Math.max(gaps[i].uMin, gaps[i + 1].uMin)
         const hi = Math.min(gaps[i].uMax, gaps[i + 1].uMax)
         const cu = lo < hi ? (lo + hi) / 2 : (gaps[i].uMin + gaps[i].uMax) / 2
-        walkways.push(seg(cu, gaps[i].v, cu, gaps[i + 1].v, cw))
+        walkways.push(pathW([[cu, gaps[i].v], [cu, gaps[i + 1].v]], cw))
       }
     }
   }
