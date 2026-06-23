@@ -436,6 +436,24 @@ button:disabled:hover {
   text-align: center;
 }
 
+.overlap-warn {
+  position: absolute;
+  left: 50%;
+  top: 60px;
+  transform: translateX(-50%);
+  z-index: 6;
+  background: #c0392b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 6px 12px;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(192, 57, 43, 0.35);
+  cursor: default;
+  user-select: none;
+}
+
 /* Title block overlay */
 .title-block {
   position: absolute;

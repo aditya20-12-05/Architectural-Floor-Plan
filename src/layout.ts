@@ -113,6 +113,27 @@ export function computeLayout(config: FloorConfig): Layout {
   }
 }
 
+// Ids of rooms whose bounding boxes overlap each other (collision flag).
+export function overlappingIds(fps: RoomFootprint[]): Set<string> {
+  const set = new Set<string>()
+  for (let i = 0; i < fps.length; i++) {
+    for (let j = i + 1; j < fps.length; j++) {
+      const a = fps[i]
+      const b = fps[j]
+      if (
+        a.minX < b.maxX - 0.05 &&
+        a.maxX > b.minX + 0.05 &&
+        a.minZ < b.maxZ - 0.05 &&
+        a.maxZ > b.minZ + 0.05
+      ) {
+        set.add(a.id)
+        set.add(b.id)
+      }
+    }
+  }
+  return set
+}
+
 // Double-loaded band slots for all rooms (used by auto-arrange).
 function bandSlots(config: FloorConfig): Slot[] {
   const { slabW, slabD } = slabDims(config.carpetArea)
@@ -132,35 +153,22 @@ function bandSlots(config: FloorConfig): Slot[] {
   const northCz = corridorWidth / 2 + bandD / 2
   const southCz = -(corridorWidth / 2 + bandD / 2)
   return [
-    ...layBandSlots(rooms.slice(0, splitIdx), northCz, bandD, slabW),
-    ...layBandSlots(rooms.slice(splitIdx), southCz, bandD, slabW),
+    ...layBandSlots(rooms.slice(0, splitIdx), northCz, bandD),
+    ...layBandSlots(rooms.slice(splitIdx), southCz, bandD),
   ]
 }
 
-function layBandSlots(list: Room[], cz: number, bandD: number, slabW: number): Slot[] {
+// Area-preserving, edge-to-edge packing: each room fills the band depth with
+// width = area / bandD, laid in a centred row. Every slot's area equals the
+// room's area, so the rendered (area-preserving) footprint fits its slot
+// exactly — adjacent rooms share edges but never overlap. When the rooms
+// exceed the slab they overflow the sides symmetrically (a visible signal).
+function layBandSlots(list: Room[], cz: number, bandD: number): Slot[] {
   if (list.length === 0 || bandD <= 0) return []
-  const scale = slabW / (list.reduce((s, r) => s + r.area, 0) / bandD || 1)
-  let widths = list.map((r) => (r.area / bandD) * scale)
-  const minW = Math.min(6, slabW / list.length)
-  for (let iter = 0; iter < 4; iter++) {
-    const fixed = widths.map((w) => w <= minW + 1e-6)
-    let fixedSum = 0
-    let flexSum = 0
-    widths.forEach((w, i) => (fixed[i] ? (fixedSum += minW) : (flexSum += w)))
-    const remain = slabW - fixedSum
-    if (flexSum <= 0 || remain <= 0) break
-    const k = remain / flexSum
-    let changed = false
-    widths = widths.map((w, i) => {
-      if (fixed[i]) return minW
-      const nw = w * k
-      if (nw <= minW + 1e-6) changed = true
-      return nw
-    })
-    if (!changed) break
-  }
+  const widths = list.map((r) => Math.max(r.area, 1) / bandD)
+  const total = widths.reduce((s, w) => s + w, 0)
   const slots: Slot[] = []
-  let x = -slabW / 2
+  let x = -total / 2
   for (let i = 0; i < list.length; i++) {
     const w = widths[i]
     slots.push({ id: list[i].id, cx: x + w / 2, cz, w, d: bandD })

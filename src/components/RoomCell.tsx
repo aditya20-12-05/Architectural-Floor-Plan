@@ -13,12 +13,16 @@ interface Props {
   target: RoomFootprint
   height: number
   highlight: boolean
+  overlap: boolean
   wireframe: boolean
   dragging: boolean
   interactive: boolean
   dragRef: DragRef
   onPointerDownBlock: (id: string, e: ThreeEvent<PointerEvent>) => void
 }
+
+const OVERLAP_WALL = '#c0392b'
+const OVERLAP_FLOOR = '#f4ccc2'
 
 interface WallSeg {
   pos: [number, number]
@@ -90,6 +94,7 @@ export default function RoomCell({
   target,
   height,
   highlight,
+  overlap,
   wireframe,
   dragging,
   interactive,
@@ -99,7 +104,8 @@ export default function RoomCell({
   const groupRef = useRef<THREE.Group>(null)
   const H = Math.max(height, 1)
   const Tw = WALL_THICKNESS_FT
-  const wallColor = highlight ? PALETTE.accent : PALETTE.line
+  const wallColor = overlap ? OVERLAP_WALL : highlight ? PALETTE.accent : PALETTE.line
+  const floorColor = overlap ? OVERLAP_FLOOR : highlight ? '#f7e6dd' : PALETTE.slab
 
   // Local polygon (relative to the footprint centre); stable under pure moves.
   const cx = target.cx
@@ -170,7 +176,7 @@ export default function RoomCell({
         }
       >
         <meshBasicMaterial
-          color={highlight ? '#f7e6dd' : PALETTE.slab}
+          color={floorColor}
           side={THREE.DoubleSide}
           polygonOffset
           polygonOffsetFactor={1}

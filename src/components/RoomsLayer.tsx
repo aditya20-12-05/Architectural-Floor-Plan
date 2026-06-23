@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber'
-import { Layout, RoomFootprint } from '../layout'
+import { Layout, RoomFootprint, overlappingIds } from '../layout'
 import { Room, ViewToggles } from '../types'
 import { ANIM_RATE, roomNo } from '../constants'
 import { makeLabelTexture, LabelContent, LABEL_W, LABEL_H } from '../labelSprite'
@@ -9,6 +9,44 @@ import RoomCell from './RoomCell'
 
 const LABEL_OFFSET = 2.4
 const DRAG_LIFT = 7
+const SNAP_DIST = 2.5 // ft: edge-snap threshold while dragging
+
+// Snap a dragged room's left/right/centre edges to nearby room edges and the
+// slab edges (per axis, nearest within threshold).
+function snapDrag(
+  rawX: number,
+  rawZ: number,
+  dragged: RoomFootprint,
+  others: RoomFootprint[],
+  slabW: number,
+  slabD: number
+): [number, number] {
+  const hxMin = dragged.cx - dragged.minX
+  const hxMax = dragged.maxX - dragged.cx
+  const hzMin = dragged.cz - dragged.minZ
+  const hzMax = dragged.maxZ - dragged.cz
+  const xT = [-slabW / 2, slabW / 2]
+  const zT = [-slabD / 2, slabD / 2]
+  for (const f of others) {
+    xT.push(f.minX, f.maxX, f.cx)
+    zT.push(f.minZ, f.maxZ, f.cz)
+  }
+  const best = (raw: number, targets: number[], offs: number[]): number => {
+    let bv = raw
+    let bd = SNAP_DIST
+    for (const t of targets) {
+      for (const off of offs) {
+        const d = Math.abs(raw + off - t)
+        if (d < bd) {
+          bd = d
+          bv = t - off
+        }
+      }
+    }
+    return bv
+  }
+  return [best(rawX, xT, [-hxMin, hxMax, 0]), best(rawZ, zT, [-hzMin, hzMax, 0])]
+}
 
 interface Props {
   layout: Layout
@@ -52,10 +90,15 @@ export default function RoomsLayer({
     return m
   }, [layout])
 
+  // Rooms whose bounding boxes overlap (flagged in a warning colour).
+  const overlapIds = useMemo(() => overlappingIds(layout.footprints), [layout])
+
   // --- block drag-to-move ---------------------------------------------------
   const dragRef = useRef<DragState>({ id: null, active: false, sx: 0, sy: 0, x: 0, z: 0 })
   const fpRef = useRef(layout.footprints)
   fpRef.current = layout.footprints
+  const slabRef = useRef({ w: layout.slabW, d: layout.slabD })
+  slabRef.current = { w: layout.slabW, d: layout.slabD }
   const cbRef = useRef({ onSelect, onPlace })
   cbRef.current = { onSelect, onPlace }
 
@@ -93,8 +136,15 @@ export default function RoomsLayer({
       const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera)
       if (raycaster.ray.intersectPlane(floorPlane, point)) {
-        drag.x = point.x
-        drag.z = point.z
+        let sx = Math.round(point.x / SNAP) * SNAP
+        let sz = Math.round(point.z / SNAP) * SNAP
+        const dragged = fpRef.current.find((f) => f.id === drag.id)
+        if (dragged) {
+          const others = fpRef.current.filter((f) => f.id !== drag.id)
+          ;[sx, sz] = snapDrag(sx, sz, dragged, others, slabRef.current.w, slabRef.current.d)
+        }
+        drag.x = sx
+        drag.z = sz
       }
       document.body.style.cursor = 'grabbing'
     }
@@ -102,9 +152,8 @@ export default function RoomsLayer({
     const onUp = () => {
       const drag = dragRef.current
       if (drag.id && drag.active) {
-        const px = Math.round(drag.x / SNAP) * SNAP
-        const pz = Math.round(drag.z / SNAP) * SNAP
-        cbRef.current.onPlace(drag.id, px, pz)
+        // drag.x/drag.z are already grid- and edge-snapped in onMove.
+        cbRef.current.onPlace(drag.id, drag.x, drag.z)
       }
       dragRef.current = { id: null, active: false, sx: 0, sy: 0, x: 0, z: 0 }
       setDraggingId(null)
@@ -133,6 +182,7 @@ export default function RoomsLayer({
               target={fp}
               height={renderWallH}
               highlight={highlight}
+              overlap={overlapIds.has(room.id) && !isDragging}
               wireframe={view.wireframe}
               dragging={isDragging}
               interactive={roomDragEnabled}

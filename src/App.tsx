@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { Canvas } from '@react-three/fiber'
 import { historyReducer, initHistory } from './state'
 import { loadConfig, saveConfig } from './storage'
-import { computeLayout, summarizeAreas } from './layout'
+import { computeLayout, summarizeAreas, overlappingIds } from './layout'
 import { AREA_TOLERANCE } from './constants'
 import { ThreeHandles, frameCamera, frameTopDown, defaultCameraPosition } from './cameraApi'
 import { exportViewPNG, exportConfigJSON, readConfigFile } from './export'
@@ -34,6 +34,7 @@ export default function App() {
     [config.rooms, config.carpetArea, config.walkableArea]
   )
   const summary = useMemo(() => summarizeAreas(config, AREA_TOLERANCE), [config])
+  const overlapCount = useMemo(() => overlappingIds(layout.footprints).size, [layout])
 
   // Persist to localStorage (debounced, so live reshaping does not hammer it).
   useEffect(() => {
@@ -270,6 +271,15 @@ export default function App() {
             </>
           )}
         </div>
+
+        {overlapCount > 0 && (
+          <div
+            className="overlap-warn"
+            title="Rooms drawn in red overlap each other. Drag them apart, or use Auto-arrange to re-tile."
+          >
+            ⚠ {overlapCount} room{overlapCount > 1 ? 's' : ''} overlapping
+          </div>
+        )}
 
         {mode === 'edit' && (
           <div className="edit-hint">
