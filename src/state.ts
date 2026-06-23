@@ -2,7 +2,7 @@ import { FloorConfig, Room, ViewToggles, TitleBlockInfo, Walkway } from './types
 import { uid } from './constants'
 import { normalizeConfig } from './storage'
 import { SAMPLE_CONFIG } from './sampleConfig'
-import { autoArrangeRooms, ensurePlaced } from './layout'
+import { magicLayout, ensurePlaced } from './layout'
 
 export type Action =
   | { type: 'setFloor'; field: 'totalArea' | 'carpetArea' | 'walkableArea' | 'wallHeight'; value: number }
@@ -122,8 +122,10 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
         }),
       }
 
-    case 'autoArrange':
-      return { ...state, rooms: autoArrangeRooms(state) }
+    case 'autoArrange': {
+      const { rooms, walkways } = magicLayout(state)
+      return { ...state, rooms, walkways }
+    }
 
     case 'resetLayout':
       return {
@@ -210,7 +212,8 @@ export function historyReducer(state: HistoryState, action: HistoryAction): Hist
   const key = `${action.type}:${a.id ?? a.field ?? a.key ?? ''}`
 
   // Coalesce continuous edits of the same target into a single undo step.
-  if (key === state.lastKey && state.past.length > 0) {
+  // (Each Magic Layout is its own step so you can undo back through variants.)
+  if (key === state.lastKey && state.past.length > 0 && action.type !== 'autoArrange') {
     return { ...state, present: newPresent }
   }
 

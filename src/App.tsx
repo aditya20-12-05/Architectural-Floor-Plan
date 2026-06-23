@@ -300,8 +300,11 @@ export default function App() {
                   Clear Walkways
                 </button>
               )}
-              <button onClick={autoArrange} title="Tile every room into a double-loaded corridor">
-                Auto-arrange
+              <button
+                onClick={autoArrange}
+                title="Generate a fresh, efficient layout with its own walkways — click again for another"
+              >
+                ✨ Magic Layout
               </button>
               <button onClick={resetLayout} title="Send all rooms back to the menu (empty the plan)">
                 Clear Plan
@@ -337,8 +340,8 @@ export default function App() {
           <div className="empty-plan">
             <p>No rooms on the plan yet.</p>
             <p className="sub">
-              Drag a room's <span className="kbd">⠿</span> handle from the menu onto the base, or tile
-              them all at once:
+              Drag a room's <span className="kbd">⠿</span> handle from the menu onto the base, or let
+              it design one for you:
             </p>
             <button
               className="primary"
@@ -347,7 +350,7 @@ export default function App() {
                 autoArrange()
               }}
             >
-              Auto-arrange rooms
+              ✨ Magic Layout
             </button>
           </div>
         )}
@@ -371,7 +374,8 @@ export default function App() {
                 </li>
                 <li>
                   <b>Place from the menu</b> — drag a room's <span className="kbd">⠿</span> handle onto
-                  the base, or hit <b>Auto-arrange</b> to tile everything into a corridor.
+                  the base, or hit <b>✨ Magic Layout</b> for a complete plan with walkways (click
+                  again for a different one).
                 </li>
                 <li>
                   <b>Draw Walkway</b> lets you drag walkway paths; rooms snap to each other and turn
