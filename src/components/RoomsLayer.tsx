@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber'
-import { Line } from '@react-three/drei'
 import { Layout, RoomFootprint } from '../layout'
 import { Room, ViewToggles } from '../types'
-import { PALETTE, ANIM_RATE, roomNo } from '../constants'
+import { ANIM_RATE, roomNo } from '../constants'
 import { makeLabelTexture, LabelContent, LABEL_W, LABEL_H } from '../labelSprite'
+import RoomCell from './RoomCell'
 
-const LABEL_OFFSET = 2.4 // world units above the roof
-const DRAG_LIFT = 7 // how high a picked-up block floats
+const LABEL_OFFSET = 2.4
+const DRAG_LIFT = 7
 
 interface Props {
   layout: Layout
@@ -62,6 +62,9 @@ export default function RoomsLayer({
   const raycaster = useMemo(() => new THREE.Raycaster(), [])
   const floorPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
 
+  // Low "plan" wall height so the layout stays readable from the iso view.
+  const renderWallH = Math.max(2, Math.min(wallHeight * 0.3, 4.5))
+
   const beginDrag = useCallback(
     (id: string, e: ThreeEvent<PointerEvent>) => {
       const ne = e.nativeEvent
@@ -76,26 +79,25 @@ export default function RoomsLayer({
     const point = new THREE.Vector3()
 
     const onMove = (e: PointerEvent) => {
-      const d = dragRef.current
-      if (!d.id) return
-      if (!d.active) {
-        if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5) return
-        d.active = true
-        setDraggingId(d.id)
+      const drag = dragRef.current
+      if (!drag.id) return
+      if (!drag.active) {
+        if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return
+        drag.active = true
+        setDraggingId(drag.id)
       }
       const rect = gl.domElement.getBoundingClientRect()
       const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1
       const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera)
       if (raycaster.ray.intersectPlane(floorPlane, point)) {
-        d.x = point.x
-        d.z = point.z
+        drag.x = point.x
+        drag.z = point.z
       }
-      // drop target = a different block whose footprint contains the cursor
       let target: string | null = null
       for (const f of fpRef.current) {
-        if (f.id === d.id) continue
-        if (Math.abs(d.x - f.cx) <= f.w / 2 && Math.abs(d.z - f.cz) <= f.d / 2) {
+        if (f.id === drag.id) continue
+        if (Math.abs(drag.x - f.cx) <= f.w / 2 && Math.abs(drag.z - f.cz) <= f.d / 2) {
           target = f.id
           break
         }
@@ -108,9 +110,9 @@ export default function RoomsLayer({
     }
 
     const onUp = () => {
-      const d = dragRef.current
-      if (d.id && d.active && dropRef.current && dropRef.current !== d.id) {
-        cbRef.current.onSwap(d.id, dropRef.current)
+      const drag = dragRef.current
+      if (drag.id && drag.active && dropRef.current && dropRef.current !== drag.id) {
+        cbRef.current.onSwap(drag.id, dropRef.current)
       }
       dragRef.current = { id: null, active: false, sx: 0, sy: 0, x: 0, z: 0 }
       dropRef.current = null
@@ -138,11 +140,10 @@ export default function RoomsLayer({
         const highlight = room.flagship || selectedId === room.id || isDragging || isDrop
         return (
           <group key={room.id}>
-            <RoomBox
+            <RoomCell
               target={fp}
-              height={wallHeight}
-              edgeColor={highlight ? PALETTE.accent : PALETTE.line}
-              edgeWidth={isDragging ? 2.8 : highlight ? 2.2 : 1}
+              height={renderWallH}
+              highlight={highlight}
               wireframe={view.wireframe}
               dragging={isDragging}
               dragRef={dragRef}
@@ -151,7 +152,7 @@ export default function RoomsLayer({
             {view.labels && (
               <RoomLabel
                 target={fp}
-                height={wallHeight}
+                height={renderWallH}
                 dragging={isDragging}
                 dragRef={dragRef}
                 content={{
@@ -171,105 +172,6 @@ export default function RoomsLayer({
 
 function damp(current: number, target: number, dt: number, rate = ANIM_RATE): number {
   return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-rate * dt))
-}
-
-// 12 box edges as 24 points (unit footprint in x/z, real height in y), centred.
-function buildEdges(height: number): [number, number, number][] {
-  const h = height / 2
-  const c: [number, number, number][] = [
-    [-0.5, -h, -0.5],
-    [0.5, -h, -0.5],
-    [0.5, -h, 0.5],
-    [-0.5, -h, 0.5],
-    [-0.5, h, -0.5],
-    [0.5, h, -0.5],
-    [0.5, h, 0.5],
-    [-0.5, h, 0.5],
-  ]
-  const e = (a: number, b: number): [number, number, number][] => [c[a], c[b]]
-  return [
-    ...e(0, 1), ...e(1, 2), ...e(2, 3), ...e(3, 0),
-    ...e(4, 5), ...e(5, 6), ...e(6, 7), ...e(7, 4),
-    ...e(0, 4), ...e(1, 5), ...e(2, 6), ...e(3, 7),
-  ]
-}
-
-interface BoxProps {
-  target: RoomFootprint
-  height: number
-  edgeColor: string
-  edgeWidth: number
-  wireframe: boolean
-  dragging: boolean
-  dragRef: React.MutableRefObject<DragState>
-  onPointerDownBlock: (id: string, e: ThreeEvent<PointerEvent>) => void
-}
-
-function RoomBox({
-  target,
-  height,
-  edgeColor,
-  edgeWidth,
-  wireframe,
-  dragging,
-  dragRef,
-  onPointerDownBlock,
-}: BoxProps) {
-  const groupRef = useRef<THREE.Group>(null)
-  const edges = useMemo(() => buildEdges(height), [height])
-
-  useLayoutEffect(() => {
-    const g = groupRef.current
-    if (!g) return
-    g.position.set(target.cx, height / 2, target.cz)
-    g.scale.set(Math.max(target.w, 1e-3), 1, Math.max(target.d, 1e-3))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useFrame((_, dt) => {
-    const g = groupRef.current
-    if (!g) return
-    const drag = dragRef.current
-    const followingCursor = dragging && drag.active
-    const tx = followingCursor ? drag.x : target.cx
-    const tz = followingCursor ? drag.z : target.cz
-    const ty = followingCursor ? height / 2 + DRAG_LIFT : height / 2
-    const rate = followingCursor ? 24 : ANIM_RATE
-    g.position.x = damp(g.position.x, tx, dt, rate)
-    g.position.z = damp(g.position.z, tz, dt, rate)
-    g.position.y = damp(g.position.y, ty, dt, rate)
-    g.scale.x = damp(g.scale.x, Math.max(target.w, 1e-3), dt)
-    g.scale.z = damp(g.scale.z, Math.max(target.d, 1e-3), dt)
-  })
-
-  return (
-    <group ref={groupRef} renderOrder={dragging ? 20 : 0}>
-      <mesh
-        onPointerDown={(e) => {
-          e.stopPropagation()
-          onPointerDownBlock(target.id, e)
-        }}
-        onPointerOver={() => {
-          if (!dragRef.current.id) document.body.style.cursor = 'grab'
-        }}
-        onPointerOut={() => {
-          if (!dragRef.current.id) document.body.style.cursor = 'default'
-        }}
-      >
-        <boxGeometry args={[1, height, 1]} />
-        <meshBasicMaterial
-          color={PALETTE.slab}
-          transparent={wireframe}
-          opacity={wireframe ? 0 : 1}
-          depthWrite={!wireframe}
-          polygonOffset
-          polygonOffsetFactor={1}
-          polygonOffsetUnits={1}
-        />
-      </mesh>
-      <Line points={edges} segments color={edgeColor} lineWidth={edgeWidth} />
-    </group>
-  )
 }
 
 interface LabelProps {

@@ -4,6 +4,8 @@ import { ThreeHandles } from '../cameraApi'
 import { PALETTE } from '../constants'
 import FloorSlab from './FloorSlab'
 import FloorGrid from './FloorGrid'
+import CorridorLayer from './CorridorLayer'
+import Dimensions from './Dimensions'
 import RoomsLayer from './RoomsLayer'
 import NorthArrow from './NorthArrow'
 import CameraRig from './CameraRig'
@@ -35,6 +37,7 @@ export default function Scene({
       <ambientLight intensity={1} />
       <FloorSlab slabW={layout.slabW} slabD={layout.slabD} />
       {config.view.grid && <FloorGrid slabW={layout.slabW} slabD={layout.slabD} />}
+      <CorridorLayer corridors={layout.corridors} />
       <RoomsLayer
         layout={layout}
         rooms={config.rooms}
@@ -44,6 +47,7 @@ export default function Scene({
         onSelect={onSelect}
         onSwap={onSwap}
       />
+      <Dimensions slabW={layout.slabW} slabD={layout.slabD} />
       <NorthArrow slabW={layout.slabW} slabD={layout.slabD} />
       <CameraRig
         handlesRef={handlesRef}

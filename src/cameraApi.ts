@@ -12,7 +12,7 @@ const DEFAULT_DIR = new THREE.Vector3(1, 0.82, 1.25).normalize()
 const ISO_DIR = new THREE.Vector3(1, 1, 1).normalize()
 
 export function isoDistance(slabW: number, slabD: number, height: number): number {
-  return Math.max(slabW, slabD) * 1.45 + height * 2
+  return Math.max(slabW, slabD) * 1.6 + height * 2
 }
 
 export function defaultCameraPosition(

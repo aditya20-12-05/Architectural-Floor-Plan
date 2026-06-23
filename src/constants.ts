@@ -9,11 +9,20 @@ export const PALETTE = {
   white: '#ffffff',
 } as const
 
-// Floor slab default footprint aspect ratio (width : depth).
-export const SLAB_ASPECT = 4 / 3
+// Floor slab default footprint aspect ratio (width : depth). Longer than wide
+// so a central corridor spine running the length reads naturally.
+export const SLAB_ASPECT = 1.6
 
-// Grid spacing in feet.
+// Grid spacing in feet (planning module).
 export const GRID_FT = 5
+
+// Circulation corridor width clamps (feet).
+export const CORRIDOR_MIN_FT = 4
+export const CORRIDOR_MAX_FT = 14
+
+// Architectural dimensions (feet).
+export const WALL_THICKNESS_FT = 0.5
+export const DOOR_WIDTH_FT = 3.2
 
 // Exponential damping rate for the block resize / re-flow animation.
 // Higher = snappier; ~9 settles in roughly 300ms.
