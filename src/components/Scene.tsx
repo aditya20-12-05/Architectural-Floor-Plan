@@ -5,6 +5,7 @@ import { PALETTE } from '../constants'
 import FloorSlab from './FloorSlab'
 import FloorGrid from './FloorGrid'
 import CorridorLayer from './CorridorLayer'
+import EntranceLayer from './EntranceLayer'
 import Dimensions from './Dimensions'
 import RoomsLayer from './RoomsLayer'
 import NorthArrow from './NorthArrow'
@@ -38,6 +39,7 @@ export default function Scene({
       <FloorSlab slabW={layout.slabW} slabD={layout.slabD} />
       {config.view.grid && <FloorGrid slabW={layout.slabW} slabD={layout.slabD} />}
       <CorridorLayer corridors={layout.corridors} />
+      <EntranceLayer entrance={layout.entrance} />
       <RoomsLayer
         layout={layout}
         rooms={config.rooms}

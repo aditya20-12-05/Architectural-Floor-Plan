@@ -21,11 +21,19 @@ export interface CorridorSeg {
   axis: 'x' | 'z'
 }
 
+export interface Entrance {
+  x: number
+  z: number
+  width: number
+  dir: number // inward direction along x (+1 / -1)
+}
+
 export interface Layout {
   slabW: number
   slabD: number
   corridorWidth: number
   corridors: CorridorSeg[]
+  entrance: Entrance
   footprints: RoomFootprint[]
   circulationArea: number // actual corridor area
 }
@@ -83,12 +91,14 @@ export function computeLayout(config: FloorConfig): Layout {
   ]
 
   const corridors: CorridorSeg[] = [{ cx: 0, cz: 0, w: slabW, d: corridorWidth, axis: 'x' }]
+  const entrance: Entrance = { x: slabW / 2, z: 0, width: corridorWidth, dir: -1 }
 
   return {
     slabW,
     slabD,
     corridorWidth,
     corridors,
+    entrance,
     footprints,
     circulationArea: corridorWidth * slabW,
   }
@@ -105,13 +115,36 @@ function layBand(
   band: 'north' | 'south'
 ): RoomFootprint[] {
   if (list.length === 0 || bandD <= 0) return []
-  const rawW = list.map((r) => r.area / bandD)
-  const sumW = rawW.reduce((a, b) => a + b, 0)
-  const scale = sumW > 0 ? slabW / sumW : 1
+  // Widths proportional to area, scaled to fill the floor length.
+  const sumA = list.reduce((s, r) => s + r.area, 0)
+  const scale = sumA > 0 ? slabW / (sumA / bandD) : 1
+  let widths = list.map((r) => (r.area / bandD) * scale)
+
+  // Enforce a minimum room width so small rooms don't become slivers; the
+  // shortfall is taken proportionally from the wider (flexible) rooms.
+  const minW = Math.min(6, slabW / list.length)
+  for (let iter = 0; iter < 4; iter++) {
+    const fixed = widths.map((w) => w <= minW + 1e-6)
+    let fixedSum = 0
+    let flexSum = 0
+    widths.forEach((w, i) => (fixed[i] ? (fixedSum += minW) : (flexSum += w)))
+    const remain = slabW - fixedSum
+    if (flexSum <= 0 || remain <= 0) break
+    const k = remain / flexSum
+    let changed = false
+    widths = widths.map((w, i) => {
+      if (fixed[i]) return minW
+      const nw = w * k
+      if (nw <= minW + 1e-6) changed = true
+      return nw
+    })
+    if (!changed) break
+  }
+
   const fps: RoomFootprint[] = []
   let x = -slabW / 2
   for (let i = 0; i < list.length; i++) {
-    const w = rawW[i] * scale
+    const w = widths[i]
     fps.push({ id: list[i].id, cx: x + w / 2, cz, w, d: bandD, corridorSide, band })
     x += w
   }
