@@ -12,6 +12,7 @@ export type Action =
   | { type: 'swap'; a: string; b: string }
   | { type: 'placeRoom'; id: string; px: number; pz: number }
   | { type: 'setShape'; id: string; shapeName: string; shapePoints: [number, number][] }
+  | { type: 'setRot'; id: string; rot: number }
   | { type: 'resetLayout' }
   | { type: 'addWalkway'; walkway: Walkway }
   | { type: 'removeWalkway'; id: string }
@@ -87,6 +88,12 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
             ? { ...r, shapeName: action.shapeName, shapePoints: action.shapePoints }
             : r
         ),
+      }
+
+    case 'setRot':
+      return {
+        ...state,
+        rooms: state.rooms.map((r) => (r.id === action.id ? { ...r, rot: action.rot } : r)),
       }
 
     case 'resetLayout':

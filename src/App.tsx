@@ -30,8 +30,11 @@ export default function App() {
   )
   const summary = useMemo(() => summarizeAreas(config, AREA_TOLERANCE), [config])
 
-  // Persist to localStorage on every change.
-  useEffect(() => saveConfig(config), [config])
+  // Persist to localStorage (debounced, so live reshaping does not hammer it).
+  useEffect(() => {
+    const t = setTimeout(() => saveConfig(config), 350)
+    return () => clearTimeout(t)
+  }, [config])
 
   // Drop selection if the selected room was removed.
   useEffect(() => {
@@ -74,6 +77,9 @@ export default function App() {
   const placeRoom = (id: string, px: number, pz: number) =>
     dispatch({ type: 'placeRoom', id, px, pz })
   const resetLayout = () => dispatch({ type: 'resetLayout' })
+  const setRot = (id: string, rot: number) => dispatch({ type: 'setRot', id, rot })
+  const setShape = (id: string, points: [number, number][]) =>
+    dispatch({ type: 'setShape', id, shapeName: 'Custom', shapePoints: points })
   const addWalkway = (w: Walkway) => dispatch({ type: 'addWalkway', walkway: w })
   const removeWalkway = (id: string) => dispatch({ type: 'removeWalkway', id })
   const clearWalkways = () => dispatch({ type: 'clearWalkways' })
@@ -152,10 +158,13 @@ export default function App() {
             selectedId={selectedId}
             roomDragEnabled={roomDragEnabled}
             walkwayActive={walkwayActive}
+            editMode={mode === 'edit'}
             onSelect={setSelectedId}
             onPlace={placeRoom}
             onAddWalkway={addWalkway}
             onRemoveWalkway={removeWalkway}
+            onSetRot={setRot}
+            onSetShape={setShape}
             handlesRef={handlesRef}
             onSnapIso={snapIso}
             onReady={handleReady}
@@ -202,7 +211,7 @@ export default function App() {
           <div className="edit-hint">
             {editTool === 'walkway'
               ? 'Walkway tool · drag on the base to draw a corridor strip; click a corridor to erase it.'
-              : 'Edit mode · drag a room to move it (snaps to grid). Switch to Draw Walkway to lay corridors.'}
+              : 'Edit · drag a room to move it. Click a room, then drag its white corners to reshape (area kept) or the round handle to rotate.'}
           </div>
         )}
 

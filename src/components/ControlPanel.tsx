@@ -277,13 +277,18 @@ export default function ControlPanel({
                   <select
                     value={room.shapeName ?? 'Square'}
                     onChange={(e) => {
-                      const sh = shapeByName(e.target.value)
-                      dispatch({
-                        type: 'setShape',
-                        id: room.id,
-                        shapeName: sh.name,
-                        shapePoints: sh.points,
-                      })
+                      if (e.target.value === 'Custom') {
+                        const pts = room.shapePoints ?? shapeByName(room.shapeName).points
+                        dispatch({ type: 'setShape', id: room.id, shapeName: 'Custom', shapePoints: pts })
+                      } else {
+                        const sh = shapeByName(e.target.value)
+                        dispatch({
+                          type: 'setShape',
+                          id: room.id,
+                          shapeName: sh.name,
+                          shapePoints: sh.points,
+                        })
+                      }
                     }}
                   >
                     {SHAPE_PRESETS.map((s) => (
@@ -291,6 +296,7 @@ export default function ControlPanel({
                         {s.name}
                       </option>
                     ))}
+                    <option value="Custom">Custom</option>
                   </select>
                 </div>
               </div>

@@ -1,5 +1,7 @@
 import { Layout } from '../layout'
 import { FloorConfig, Walkway } from '../types'
+import { Pt } from '../shapes'
+import EditGizmo from './EditGizmo'
 import { ThreeHandles } from '../cameraApi'
 import { PALETTE } from '../constants'
 import FloorSlab from './FloorSlab'
@@ -18,10 +20,13 @@ interface Props {
   selectedId: string | null
   roomDragEnabled: boolean
   walkwayActive: boolean
+  editMode: boolean
   onSelect: (id: string) => void
   onPlace: (id: string, px: number, pz: number) => void
   onAddWalkway: (w: Walkway) => void
   onRemoveWalkway: (id: string) => void
+  onSetRot: (id: string, rot: number) => void
+  onSetShape: (id: string, points: Pt[]) => void
   handlesRef: React.MutableRefObject<ThreeHandles | null>
   onSnapIso: () => void
   onReady: () => void
@@ -33,14 +38,19 @@ export default function Scene({
   selectedId,
   roomDragEnabled,
   walkwayActive,
+  editMode,
   onSelect,
   onPlace,
   onAddWalkway,
   onRemoveWalkway,
+  onSetRot,
+  onSetShape,
   handlesRef,
   onSnapIso,
   onReady,
 }: Props) {
+  const selectedRoom = config.rooms.find((r) => r.id === selectedId)
+  const selectedFp = layout.footprints.find((f) => f.id === selectedId)
   return (
     <>
       <color attach="background" args={[PALETTE.bg]} />
@@ -69,6 +79,14 @@ export default function Scene({
         onSelect={onSelect}
         onPlace={onPlace}
       />
+      {editMode && selectedRoom && selectedRoom.px != null && selectedFp && (
+        <EditGizmo
+          room={selectedRoom}
+          footprint={selectedFp}
+          onSetRot={onSetRot}
+          onSetShape={onSetShape}
+        />
+      )}
       <Dimensions slabW={layout.slabW} slabD={layout.slabD} />
       <NorthArrow slabW={layout.slabW} slabD={layout.slabD} />
       <CameraRig
