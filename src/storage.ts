@@ -53,6 +53,8 @@ export function normalizeConfig(input: any): FloorConfig {
     if (typeof r?.px === 'number') room.px = r.px
     if (typeof r?.pz === 'number') room.pz = r.pz
     if (typeof r?.rot === 'number') room.rot = r.rot
+    if (typeof r?.doorEdge === 'number') room.doorEdge = r.doorEdge
+    if (typeof r?.doorT === 'number') room.doorT = r.doorT
     if (typeof r?.shapeName === 'string') room.shapeName = r.shapeName
     if (Array.isArray(r?.shapePoints)) room.shapePoints = r.shapePoints as [number, number][]
     return room

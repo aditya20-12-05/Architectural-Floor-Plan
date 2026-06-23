@@ -34,7 +34,7 @@ function damp(c: number, t: number, dt: number, rate = ANIM_RATE): number {
   return THREE.MathUtils.lerp(c, t, 1 - Math.exp(-rate * dt))
 }
 
-function buildGeometry(local: [number, number][], doorEdge: number, Tw: number) {
+function buildGeometry(local: [number, number][], doorEdge: number, doorT: number, Tw: number) {
   const shape = new THREE.Shape()
   shape.moveTo(local[0][0], local[0][1])
   for (let i = 1; i < local.length; i++) shape.lineTo(local[i][0], local[i][1])
@@ -61,12 +61,20 @@ function buildGeometry(local: [number, number][], doorEdge: number, Tw: number) 
     if (i === doorEdge && len > Dw + 1.5) {
       const ux = dx / len
       const uz = dz / len
-      const seg = (len - Dw) / 2
-      doorSegs.push({ pos: [a[0] + ux * (seg / 2), a[1] + uz * (seg / 2)], len: seg, angle })
-      doorSegs.push({ pos: [b[0] - ux * (seg / 2), b[1] - uz * (seg / 2)], len: seg, angle })
-      // door swing, hinged at the near jamb, sweeping inward
-      const hx = a[0] + ux * seg
-      const hz = a[1] + uz * seg
+      // door opening positioned at doorT along the edge, clamped to fit
+      const doorStart = Math.min(Math.max(doorT * len - Dw / 2, 0), len - Dw)
+      const seg1 = doorStart
+      const seg2 = len - Dw - doorStart
+      if (seg1 > 0.05) {
+        doorSegs.push({ pos: [a[0] + ux * (seg1 / 2), a[1] + uz * (seg1 / 2)], len: seg1, angle })
+      }
+      if (seg2 > 0.05) {
+        const off = doorStart + Dw + seg2 / 2
+        doorSegs.push({ pos: [a[0] + ux * off, a[1] + uz * off], len: seg2, angle })
+      }
+      // door swing, hinged at the near jamb (door start), sweeping inward
+      const hx = a[0] + ux * doorStart
+      const hz = a[1] + uz * doorStart
       let nx = -uz
       let nz = ux
       if (-mx * nx + -mz * nz < 0) {
@@ -111,9 +119,14 @@ export default function RoomCell({
   const cx = target.cx
   const cz = target.cz
   const local = target.poly.map(([x, z]) => [x - cx, z - cz] as [number, number])
-  const localKey = local.map((p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(';') + '|' + target.doorEdge
+  const localKey =
+    local.map((p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(';') +
+    '|' +
+    target.doorEdge +
+    '|' +
+    target.doorT.toFixed(3)
 
-  const geo = useMemo(() => buildGeometry(local, target.doorEdge, Tw), [localKey])
+  const geo = useMemo(() => buildGeometry(local, target.doorEdge, target.doorT, Tw), [localKey])
   useEffect(() => () => geo.floor.dispose(), [geo])
 
   useLayoutEffect(() => {

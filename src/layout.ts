@@ -8,6 +8,7 @@ export interface RoomFootprint {
   cz: number
   poly: Pt[]
   doorEdge: number
+  doorT: number
   minX: number
   maxX: number
   minZ: number
@@ -78,12 +79,19 @@ function shapeFootprint(room: Room, attractors: Pt[]): RoomFootprint {
       : shapeByName(room.shapeName).points
   const s = Math.sqrt(Math.max(room.area, 1))
   const poly = shapeToWorld(pts, room.px as number, room.pz as number, s, room.rot ?? 0)
+  // Honour a manual door override when its edge index is still valid for the
+  // current shape; otherwise auto-pick the edge facing circulation.
+  const manualEdge =
+    room.doorEdge != null && room.doorEdge >= 0 && room.doorEdge < poly.length
+      ? room.doorEdge
+      : null
   return {
     id: room.id,
     cx: room.px as number,
     cz: room.pz as number,
     poly,
-    doorEdge: doorEdgeIndex(poly, attractors),
+    doorEdge: manualEdge ?? doorEdgeIndex(poly, attractors),
+    doorT: room.doorT != null ? Math.min(0.85, Math.max(0.15, room.doorT)) : 0.5,
     ...bbox(poly),
   }
 }

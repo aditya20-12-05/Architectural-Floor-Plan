@@ -153,6 +153,8 @@ export default function App() {
   const resetLayout = () => dispatch({ type: 'resetLayout' })
   const autoArrange = () => dispatch({ type: 'autoArrange' })
   const setRot = (id: string, rot: number) => dispatch({ type: 'setRot', id, rot })
+  const setDoor = (id: string, doorEdge: number, doorT: number) =>
+    dispatch({ type: 'setDoor', id, doorEdge, doorT })
   const setShape = (id: string, points: [number, number][]) =>
     dispatch({ type: 'setShape', id, shapeName: 'Custom', shapePoints: points })
   const addWalkway = (w: Walkway) => dispatch({ type: 'addWalkway', walkway: w })
@@ -240,6 +242,7 @@ export default function App() {
             onRemoveWalkway={removeWalkway}
             onSetRot={setRot}
             onSetShape={setShape}
+            onSetDoor={setDoor}
             handlesRef={handlesRef}
             onSnapIso={snapIso}
             onReady={handleReady}
@@ -326,7 +329,7 @@ export default function App() {
           <div className="edit-hint">
             {editTool === 'walkway'
               ? 'Walkway tool · drag from start to end to draw a walkway path (chain several for L / U routes); click a walkway to erase it.'
-              : 'Edit · drag a room to move it; click to select, then drag white corners to reshape (area kept) or the round handle to rotate. Keys: R rotate · arrows nudge · Delete remove · Esc deselect · ⌘/Ctrl+Z undo.'}
+              : 'Edit · drag a room to move it; click to select, then drag white corners to reshape (area kept), the round handle to rotate, or the blue door to move the doorway to any wall. Keys: R rotate · arrows nudge · Delete remove · Esc deselect · ⌘/Ctrl+Z undo.'}
           </div>
         )}
 

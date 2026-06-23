@@ -14,6 +14,7 @@ export type Action =
   | { type: 'placeRoom'; id: string; px: number; pz: number }
   | { type: 'setShape'; id: string; shapeName: string; shapePoints: [number, number][] }
   | { type: 'setRot'; id: string; rot: number }
+  | { type: 'setDoor'; id: string; doorEdge: number; doorT: number }
   | { type: 'unplaceRoom'; id: string }
   | { type: 'autoArrange' }
   | { type: 'resetLayout' }
@@ -97,6 +98,14 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
       return {
         ...state,
         rooms: state.rooms.map((r) => (r.id === action.id ? { ...r, rot: action.rot } : r)),
+      }
+
+    case 'setDoor':
+      return {
+        ...state,
+        rooms: state.rooms.map((r) =>
+          r.id === action.id ? { ...r, doorEdge: action.doorEdge, doorT: action.doorT } : r
+        ),
       }
 
     case 'unplaceRoom':

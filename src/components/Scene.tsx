@@ -24,6 +24,7 @@ interface Props {
   onRemoveWalkway: (id: string) => void
   onSetRot: (id: string, rot: number) => void
   onSetShape: (id: string, points: Pt[]) => void
+  onSetDoor: (id: string, doorEdge: number, doorT: number) => void
   handlesRef: React.MutableRefObject<ThreeHandles | null>
   onSnapIso: () => void
   onReady: () => void
@@ -42,6 +43,7 @@ export default function Scene({
   onRemoveWalkway,
   onSetRot,
   onSetShape,
+  onSetDoor,
   handlesRef,
   onSnapIso,
   onReady,
@@ -78,6 +80,7 @@ export default function Scene({
           footprint={selectedFp}
           onSetRot={onSetRot}
           onSetShape={onSetShape}
+          onSetDoor={onSetDoor}
         />
       )}
       <NorthArrow slabW={layout.slabW} slabD={layout.slabD} />

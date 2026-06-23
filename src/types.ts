@@ -14,6 +14,10 @@ export interface Room {
   px?: number
   pz?: number
   rot?: number
+  // Door override: which polygon edge the doorway sits on, and where along it
+  // (0..1). When unset the door auto-picks the edge facing circulation.
+  doorEdge?: number
+  doorT?: number
 }
 
 export interface ViewToggles {
