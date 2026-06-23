@@ -31,6 +31,9 @@ export interface TitleBlockInfo {
   drawing: string
   scale: string
   sheet: string
+  location?: string
+  headline?: string
+  brand?: string
 }
 
 export interface Walkway {

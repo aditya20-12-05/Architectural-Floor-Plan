@@ -6,7 +6,7 @@ import { loadConfig, saveConfig } from './storage'
 import { computeLayout, summarizeAreas, overlappingIds } from './layout'
 import { AREA_TOLERANCE } from './constants'
 import { ThreeHandles, frameCamera, frameTopDown, defaultCameraPosition } from './cameraApi'
-import { exportViewPNG, exportConfigJSON, readConfigFile } from './export'
+import { exportPosterPNG, exportConfigJSON, readConfigFile } from './export'
 import { normalizeConfig } from './storage'
 import { Walkway } from './types'
 import Scene from './components/Scene'
@@ -136,7 +136,7 @@ export default function App() {
       )
   }
   const exportPNG = () => {
-    if (handlesRef.current) exportViewPNG(handlesRef.current, config)
+    void exportPosterPNG(config)
   }
   const exportJSON = () => exportConfigJSON(config)
   const importJSON = (file: File) => {

@@ -50,9 +50,12 @@ export const SAMPLE_CONFIG: FloorConfig = {
     lockIso: false,
   },
   title: {
-    project: 'CONTENT STUDIO — L1',
-    drawing: 'STUDIO FLOOR PLAN',
+    project: 'INN HOUSE STUDIOS LLP',
+    drawing: 'FLOOR PLAN — ISOMETRIC',
     scale: 'NTS',
     sheet: 'A-01',
+    location: 'ISKCON — AMBLI RD',
+    headline: 'The floor, drawn to plan.',
+    brand: 'THE SPACE',
   },
 }

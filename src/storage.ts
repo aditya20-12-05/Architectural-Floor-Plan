@@ -76,6 +76,9 @@ export function normalizeConfig(input: any): FloorConfig {
     drawing: str(input?.title?.drawing, d.title.drawing),
     scale: str(input?.title?.scale, d.title.scale),
     sheet: str(input?.title?.sheet, d.title.sheet),
+    location: str(input?.title?.location, d.title.location ?? ''),
+    headline: str(input?.title?.headline, d.title.headline ?? 'The floor, drawn to plan.'),
+    brand: str(input?.title?.brand, d.title.brand ?? 'THE SPACE'),
   }
   const walkways = Array.isArray(input?.walkways)
     ? input.walkways.map((w: any) => ({

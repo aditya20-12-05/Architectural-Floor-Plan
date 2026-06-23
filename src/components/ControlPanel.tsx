@@ -104,9 +104,29 @@ export default function ControlPanel({
         <p className="panel-sub">Isometric Generator</p>
       </div>
 
-      {/* Title block fields */}
+      {/* Title block / poster fields */}
       <div className="section">
         <h3>Sheet</h3>
+        <div className="field-row">
+          <label>Brand</label>
+          <input
+            type="text"
+            value={config.title.brand ?? ''}
+            placeholder="THE SPACE"
+            onChange={(e) => dispatch({ type: 'setTitle', field: 'brand', value: e.target.value })}
+          />
+        </div>
+        <div className="field-row">
+          <label>Headline</label>
+          <input
+            type="text"
+            value={config.title.headline ?? ''}
+            placeholder="The floor, drawn to plan."
+            onChange={(e) =>
+              dispatch({ type: 'setTitle', field: 'headline', value: e.target.value })
+            }
+          />
+        </div>
         <div className="field-row">
           <label>Project</label>
           <input
@@ -124,6 +144,17 @@ export default function ControlPanel({
           />
         </div>
         <div className="field-row">
+          <label>Location</label>
+          <input
+            type="text"
+            value={config.title.location ?? ''}
+            placeholder="ISKCON — AMBLI RD"
+            onChange={(e) =>
+              dispatch({ type: 'setTitle', field: 'location', value: e.target.value })
+            }
+          />
+        </div>
+        <div className="field-row">
           <label>Sheet No</label>
           <input
             type="text"
@@ -131,6 +162,7 @@ export default function ControlPanel({
             onChange={(e) => dispatch({ type: 'setTitle', field: 'sheet', value: e.target.value })}
           />
         </div>
+        <p className="field-note">Brand, headline &amp; location appear on the exported PNG poster.</p>
       </div>
 
       {/* Floor areas */}
