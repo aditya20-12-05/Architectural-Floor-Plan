@@ -2,6 +2,7 @@ import { FloorConfig, Room, ViewToggles, TitleBlockInfo, Walkway } from './types
 import { uid } from './constants'
 import { normalizeConfig } from './storage'
 import { SAMPLE_CONFIG } from './sampleConfig'
+import { autoArrangeRooms, ensurePlaced } from './layout'
 
 export type Action =
   | { type: 'setFloor'; field: 'totalArea' | 'carpetArea' | 'walkableArea' | 'wallHeight'; value: number }
@@ -14,6 +15,7 @@ export type Action =
   | { type: 'setShape'; id: string; shapeName: string; shapePoints: [number, number][] }
   | { type: 'setRot'; id: string; rot: number }
   | { type: 'unplaceRoom'; id: string }
+  | { type: 'autoArrange' }
   | { type: 'resetLayout' }
   | { type: 'addWalkway'; walkway: Walkway }
   | { type: 'removeWalkway'; id: string }
@@ -110,6 +112,9 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
         }),
       }
 
+    case 'autoArrange':
+      return { ...state, rooms: autoArrangeRooms(state) }
+
     case 'resetLayout':
       return {
         ...state,
@@ -138,10 +143,10 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
       return { ...state, title: { ...state.title, [action.field]: action.value } }
 
     case 'import':
-      return normalizeConfig(action.config)
+      return ensurePlaced(normalizeConfig(action.config))
 
     case 'loadSample':
-      return JSON.parse(JSON.stringify(SAMPLE_CONFIG))
+      return ensurePlaced(JSON.parse(JSON.stringify(SAMPLE_CONFIG)))
 
     default:
       return state

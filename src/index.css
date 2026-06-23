@@ -265,6 +265,24 @@ select {
   align-items: center;
   gap: 6px;
 }
+.room-place {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.place-badge {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+.place-badge.on {
+  color: #2f8f5b;
+}
+.place-badge.off {
+  color: var(--ink-mute);
+}
 
 /* ---------------- Buttons ---------------- */
 button {

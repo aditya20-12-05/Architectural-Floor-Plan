@@ -300,6 +300,32 @@ export default function ControlPanel({
                   </select>
                 </div>
               </div>
+              <div className="room-place">
+                <span className={`place-badge ${room.px != null ? 'on' : 'off'}`}>
+                  {room.px != null ? '● On plan' : '○ In menu'}
+                </span>
+                {room.px != null ? (
+                  <button
+                    className="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      dispatch({ type: 'unplaceRoom', id: room.id })
+                    }}
+                  >
+                    Send to menu
+                  </button>
+                ) : (
+                  <button
+                    className="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      dispatch({ type: 'placeRoom', id: room.id, px: 0, pz: 0 })
+                    }}
+                  >
+                    Place on plan
+                  </button>
+                )}
+              </div>
               <div className="room-actions">
                 <label className="toggle">
                   <input

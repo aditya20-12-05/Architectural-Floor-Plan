@@ -1,13 +1,13 @@
 import { FloorConfig, Room } from './types'
 import { SLAB_ASPECT, CORRIDOR_MIN_FT, CORRIDOR_MAX_FT } from './constants'
-import { Pt, bbox, shapeToWorld, shapeByName, doorEdgeIndex } from './shapes'
+import { Pt, bbox, shapeToWorld, shapeByName, doorEdgeIndex, normalizeShape } from './shapes'
 
 export interface RoomFootprint {
   id: string
-  cx: number // centre x
-  cz: number // centre z
-  poly: Pt[] // world polygon
-  doorEdge: number // index of the edge carrying the door
+  cx: number
+  cz: number
+  poly: Pt[]
+  doorEdge: number
   minX: number
   maxX: number
   minZ: number
@@ -49,20 +49,26 @@ export interface AreaSummary {
   balanced: boolean
 }
 
+interface Slot {
+  id: string
+  cx: number
+  cz: number
+  w: number
+  d: number
+}
+
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v))
 }
 
-function rectFootprint(id: string, cx: number, cz: number, w: number, d: number, doorEdge: number): RoomFootprint {
-  const hw = w / 2
-  const hd = d / 2
-  const poly: Pt[] = [
-    [cx - hw, cz - hd],
-    [cx + hw, cz - hd],
-    [cx + hw, cz + hd],
-    [cx - hw, cz + hd],
-  ]
-  return { id, cx, cz, poly, doorEdge, ...bbox(poly) }
+function slabDims(carpet: number): { slabW: number; slabD: number } {
+  const c = Math.max(carpet, 1)
+  return { slabW: Math.sqrt(c * SLAB_ASPECT), slabD: Math.sqrt(c / SLAB_ASPECT) }
+}
+
+function corridorW(config: FloorConfig, slabW: number, slabD: number): number {
+  const walkable = Math.min(Math.max(config.walkableArea, 0), config.carpetArea * 0.6)
+  return clamp(walkable / slabW, CORRIDOR_MIN_FT, Math.min(CORRIDOR_MAX_FT, slabD * 0.4))
 }
 
 function shapeFootprint(room: Room, attractors: Pt[]): RoomFootprint {
@@ -82,46 +88,16 @@ function shapeFootprint(room: Room, attractors: Pt[]): RoomFootprint {
   }
 }
 
+// Renders only PLACED rooms (px/pz set). Unplaced rooms are "in the menu".
 export function computeLayout(config: FloorConfig): Layout {
-  const carpet = Math.max(config.carpetArea, 1)
-  const slabW = Math.sqrt(carpet * SLAB_ASPECT)
-  const slabD = Math.sqrt(carpet / SLAB_ASPECT)
+  const { slabW, slabD } = slabDims(config.carpetArea)
+  const corridorWidth = corridorW(config, slabW, slabD)
+  const attractors: Pt[] =
+    config.walkways.length > 0 ? config.walkways.map((w) => [w.x, w.z] as Pt) : [[0, 0]]
 
-  const rooms = config.rooms.filter((r) => r.area > 0)
-  const totalRoom = rooms.reduce((s, r) => s + r.area, 0)
-
-  const walkable = Math.min(Math.max(config.walkableArea, 0), carpet * 0.6)
-  const maxByDepth = slabD * 0.4
-  const corridorWidth = clamp(walkable / slabW, CORRIDOR_MIN_FT, Math.min(CORRIDOR_MAX_FT, maxByDepth))
-  const bandD = (slabD - corridorWidth) / 2
-
-  let cum = 0
-  let splitIdx = rooms.length
-  for (let i = 0; i < rooms.length; i++) {
-    cum += rooms[i].area
-    if (cum >= totalRoom / 2) {
-      splitIdx = i + 1
-      break
-    }
-  }
-  const north = rooms.slice(0, splitIdx)
-  const south = rooms.slice(splitIdx)
-
-  const northCz = corridorWidth / 2 + bandD / 2
-  const southCz = -(corridorWidth / 2 + bandD / 2)
-
-  const autoFootprints: RoomFootprint[] = [
-    ...layBand(north, northCz, bandD, slabW, 0),
-    ...layBand(south, southCz, bandD, slabW, 2),
-  ]
-
-  // Override placed rooms with their chosen shape, scaled by area.
-  const byId = new Map(autoFootprints.map((f) => [f.id, f]))
-  const attractors: Pt[] = config.walkways.map((w) => [w.x, w.z] as Pt)
-  for (const r of config.rooms) {
-    if (r.px != null && r.pz != null) byId.set(r.id, shapeFootprint(r, attractors))
-  }
-  const footprints = Array.from(byId.values())
+  const footprints = config.rooms
+    .filter((r) => r.px != null && r.pz != null && r.area > 0)
+    .map((r) => shapeFootprint(r, attractors))
 
   const corridors: CorridorSeg[] = [{ cx: 0, cz: 0, w: slabW, d: corridorWidth, axis: 'x' }]
   const entrance: Entrance = { x: slabW / 2, z: 0, width: corridorWidth, dir: -1 }
@@ -137,17 +113,34 @@ export function computeLayout(config: FloorConfig): Layout {
   }
 }
 
-function layBand(
-  list: Room[],
-  cz: number,
-  bandD: number,
-  slabW: number,
-  doorEdge: number
-): RoomFootprint[] {
+// Double-loaded band slots for all rooms (used by auto-arrange).
+function bandSlots(config: FloorConfig): Slot[] {
+  const { slabW, slabD } = slabDims(config.carpetArea)
+  const corridorWidth = corridorW(config, slabW, slabD)
+  const bandD = (slabD - corridorWidth) / 2
+  const rooms = config.rooms.filter((r) => r.area > 0)
+  const total = rooms.reduce((s, r) => s + r.area, 0)
+  let cum = 0
+  let splitIdx = rooms.length
+  for (let i = 0; i < rooms.length; i++) {
+    cum += rooms[i].area
+    if (cum >= total / 2) {
+      splitIdx = i + 1
+      break
+    }
+  }
+  const northCz = corridorWidth / 2 + bandD / 2
+  const southCz = -(corridorWidth / 2 + bandD / 2)
+  return [
+    ...layBandSlots(rooms.slice(0, splitIdx), northCz, bandD, slabW),
+    ...layBandSlots(rooms.slice(splitIdx), southCz, bandD, slabW),
+  ]
+}
+
+function layBandSlots(list: Room[], cz: number, bandD: number, slabW: number): Slot[] {
   if (list.length === 0 || bandD <= 0) return []
   const scale = slabW / (list.reduce((s, r) => s + r.area, 0) / bandD || 1)
   let widths = list.map((r) => (r.area / bandD) * scale)
-
   const minW = Math.min(6, slabW / list.length)
   for (let iter = 0; iter < 4; iter++) {
     const fixed = widths.map((w) => w <= minW + 1e-6)
@@ -166,15 +159,36 @@ function layBand(
     })
     if (!changed) break
   }
-
-  const fps: RoomFootprint[] = []
+  const slots: Slot[] = []
   let x = -slabW / 2
   for (let i = 0; i < list.length; i++) {
     const w = widths[i]
-    fps.push(rectFootprint(list[i].id, x + w / 2, cz, w, bandD, doorEdge))
+    slots.push({ id: list[i].id, cx: x + w / 2, cz, w, d: bandD })
     x += w
   }
-  return fps
+  return slots
+}
+
+// Place every room into the double-loaded arrangement (a tidy starting point).
+export function autoArrangeRooms(config: FloorConfig): Room[] {
+  const slots = new Map(bandSlots(config).map((s) => [s.id, s]))
+  return config.rooms.map((r) => {
+    const s = slots.get(r.id)
+    if (!s) return r
+    const rectPts: Pt[] = [
+      [-s.w / 2, -s.d / 2],
+      [s.w / 2, -s.d / 2],
+      [s.w / 2, s.d / 2],
+      [-s.w / 2, s.d / 2],
+    ]
+    return { ...r, px: s.cx, pz: s.cz, rot: 0, shapeName: 'Square', shapePoints: normalizeShape(rectPts) }
+  })
+}
+
+// Ensure a freshly loaded config has rooms on the plan (auto-arrange once).
+export function ensurePlaced(config: FloorConfig): FloorConfig {
+  if (config.rooms.some((r) => r.px != null)) return config
+  return { ...config, rooms: autoArrangeRooms(config) }
 }
 
 export function summarizeAreas(config: FloorConfig, tolerance: number): AreaSummary {

@@ -133,6 +133,7 @@ export default function App() {
   const placeRoom = (id: string, px: number, pz: number) =>
     dispatch({ type: 'placeRoom', id, px, pz })
   const resetLayout = () => dispatch({ type: 'resetLayout' })
+  const autoArrange = () => dispatch({ type: 'autoArrange' })
   const setRot = (id: string, rot: number) => dispatch({ type: 'setRot', id, rot })
   const setShape = (id: string, points: [number, number][]) =>
     dispatch({ type: 'setShape', id, shapeName: 'Custom', shapePoints: points })
@@ -263,7 +264,8 @@ export default function App() {
                 Draw Walkway
               </button>
               {config.walkways.length > 0 && <button onClick={clearWalkways}>Clear Walkways</button>}
-              <button onClick={resetLayout}>Reset Layout</button>
+              <button onClick={autoArrange}>Auto-arrange</button>
+              <button onClick={resetLayout}>Clear Plan</button>
               <button onClick={enterView}>Done · 3D</button>
             </>
           )}

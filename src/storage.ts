@@ -1,16 +1,17 @@
 import { FloorConfig, Room, Category, ViewToggles, TitleBlockInfo } from './types'
 import { SAMPLE_CONFIG } from './sampleConfig'
 import { uid } from './constants'
+import { ensurePlaced } from './layout'
 
 const KEY = 'blueprint-floorplan:config:v1'
 
 export function loadConfig(): FloorConfig {
   try {
     const raw = localStorage.getItem(KEY)
-    if (!raw) return clone(SAMPLE_CONFIG)
-    return normalizeConfig(JSON.parse(raw))
+    if (!raw) return ensurePlaced(clone(SAMPLE_CONFIG))
+    return ensurePlaced(normalizeConfig(JSON.parse(raw)))
   } catch {
-    return clone(SAMPLE_CONFIG)
+    return ensurePlaced(clone(SAMPLE_CONFIG))
   }
 }
 
