@@ -15,6 +15,7 @@ interface Props {
   highlight: boolean
   wireframe: boolean
   dragging: boolean
+  interactive: boolean
   dragRef: DragRef
   onPointerDownBlock: (id: string, e: ThreeEvent<PointerEvent>) => void
 }
@@ -32,6 +33,7 @@ export default function RoomCell({
   highlight,
   wireframe,
   dragging,
+  interactive,
   dragRef,
   onPointerDownBlock,
 }: Props) {
@@ -96,16 +98,28 @@ export default function RoomCell({
       {/* interior floor + pointer hit area */}
       <mesh
         position={[0, 0.03, 0]}
-        onPointerDown={(e) => {
-          e.stopPropagation()
-          onPointerDownBlock(target.id, e)
-        }}
-        onPointerOver={() => {
-          if (!dragRef.current.id) document.body.style.cursor = 'grab'
-        }}
-        onPointerOut={() => {
-          if (!dragRef.current.id) document.body.style.cursor = 'default'
-        }}
+        onPointerDown={
+          interactive
+            ? (e) => {
+                e.stopPropagation()
+                onPointerDownBlock(target.id, e)
+              }
+            : undefined
+        }
+        onPointerOver={
+          interactive
+            ? () => {
+                if (!dragRef.current.id) document.body.style.cursor = 'grab'
+              }
+            : undefined
+        }
+        onPointerOut={
+          interactive
+            ? () => {
+                if (!dragRef.current.id) document.body.style.cursor = 'default'
+              }
+            : undefined
+        }
       >
         <boxGeometry args={[Math.max(w - Tw, 0.1), 0.06, Math.max(d - Tw, 0.1)]} />
         <meshBasicMaterial

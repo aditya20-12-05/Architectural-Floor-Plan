@@ -68,12 +68,23 @@ export function normalizeConfig(input: any): FloorConfig {
     scale: str(input?.title?.scale, d.title.scale),
     sheet: str(input?.title?.sheet, d.title.sheet),
   }
+  const walkways = Array.isArray(input?.walkways)
+    ? input.walkways.map((w: any) => ({
+        id: str(w?.id, '') || uid(),
+        x: num(w?.x, 0),
+        z: num(w?.z, 0),
+        w: Math.max(1, num(w?.w, 4)),
+        d: Math.max(1, num(w?.d, 4)),
+      }))
+    : []
+
   return {
     totalArea: Math.max(0, num(input?.totalArea, d.totalArea)),
     carpetArea: Math.max(1, num(input?.carpetArea, d.carpetArea)),
     walkableArea: Math.max(0, num(input?.walkableArea, d.walkableArea)),
     wallHeight: Math.max(1, num(input?.wallHeight, d.wallHeight)),
     rooms: rooms.length > 0 ? rooms : clone(d).rooms,
+    walkways,
     view,
     title,
   }

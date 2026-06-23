@@ -30,12 +30,21 @@ export interface TitleBlockInfo {
   sheet: string
 }
 
+export interface Walkway {
+  id: string
+  x: number // centre x (ft)
+  z: number // centre z (ft)
+  w: number // width (ft)
+  d: number // depth (ft)
+}
+
 export interface FloorConfig {
   totalArea: number // built-up area, sq ft
   carpetArea: number // sq ft
   walkableArea: number // circulation, sq ft
   wallHeight: number // ft
   rooms: Room[]
+  walkways: Walkway[]
   view: ViewToggles
   title: TitleBlockInfo
 }

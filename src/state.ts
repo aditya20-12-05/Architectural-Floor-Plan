@@ -1,4 +1,4 @@
-import { FloorConfig, Room, ViewToggles, TitleBlockInfo } from './types'
+import { FloorConfig, Room, ViewToggles, TitleBlockInfo, Walkway } from './types'
 import { uid } from './constants'
 import { normalizeConfig } from './storage'
 import { SAMPLE_CONFIG } from './sampleConfig'
@@ -12,6 +12,9 @@ export type Action =
   | { type: 'swap'; a: string; b: string }
   | { type: 'placeRoom'; id: string; px: number; pz: number; pw: number; pd: number }
   | { type: 'resetLayout' }
+  | { type: 'addWalkway'; walkway: Walkway }
+  | { type: 'removeWalkway'; id: string }
+  | { type: 'clearWalkways' }
   | { type: 'toggleView'; key: keyof ViewToggles }
   | { type: 'setTitle'; field: keyof TitleBlockInfo; value: string }
   | { type: 'import'; config: unknown }
@@ -89,6 +92,15 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
           return rest
         }),
       }
+
+    case 'addWalkway':
+      return { ...state, walkways: [...state.walkways, action.walkway] }
+
+    case 'removeWalkway':
+      return { ...state, walkways: state.walkways.filter((w) => w.id !== action.id) }
+
+    case 'clearWalkways':
+      return { ...state, walkways: [] }
 
     case 'toggleView':
       return { ...state, view: { ...state.view, [action.key]: !state.view[action.key] } }

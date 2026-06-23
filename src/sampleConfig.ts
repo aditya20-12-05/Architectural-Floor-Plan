@@ -39,6 +39,7 @@ export const SAMPLE_CONFIG: FloorConfig = {
     room('r19', 'Team Office', 200, 'Internal'),
     room('r20', "Founder's Cabin", 200, 'Internal'),
   ],
+  walkways: [],
   view: {
     labels: true,
     roomNumbers: true,

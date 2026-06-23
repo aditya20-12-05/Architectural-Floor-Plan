@@ -16,6 +16,7 @@ interface Props {
   view: ViewToggles
   wallHeight: number
   selectedId: string | null
+  roomDragEnabled: boolean
   onSelect: (id: string) => void
   onPlace: (id: string, px: number, pz: number, pw: number, pd: number) => void
 }
@@ -37,6 +38,7 @@ export default function RoomsLayer({
   view,
   wallHeight,
   selectedId,
+  roomDragEnabled,
   onSelect,
   onPlace,
 }: Props) {
@@ -136,6 +138,7 @@ export default function RoomsLayer({
               highlight={highlight}
               wireframe={view.wireframe}
               dragging={isDragging}
+              interactive={roomDragEnabled}
               dragRef={dragRef}
               onPointerDownBlock={beginDrag}
             />

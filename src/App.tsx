@@ -7,6 +7,7 @@ import { AREA_TOLERANCE } from './constants'
 import { ThreeHandles, frameCamera, frameTopDown, defaultCameraPosition } from './cameraApi'
 import { exportViewPNG, exportConfigJSON, readConfigFile } from './export'
 import { normalizeConfig } from './storage'
+import { Walkway } from './types'
 import Scene from './components/Scene'
 import ControlPanel from './components/ControlPanel'
 import RoomSchedule from './components/RoomSchedule'
@@ -16,7 +17,11 @@ export default function App() {
   const [config, dispatch] = useReducer(reducer, undefined, loadConfig)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<'view' | 'edit'>('view')
+  const [editTool, setEditTool] = useState<'move' | 'walkway'>('move')
   const handlesRef = useRef<ThreeHandles | null>(null)
+
+  const roomDragEnabled = mode === 'view' || editTool === 'move'
+  const walkwayActive = mode === 'edit' && editTool === 'walkway'
 
   const layout = useMemo(
     () => computeLayout(config),
@@ -68,6 +73,9 @@ export default function App() {
   const placeRoom = (id: string, px: number, pz: number, pw: number, pd: number) =>
     dispatch({ type: 'placeRoom', id, px, pz, pw, pd })
   const resetLayout = () => dispatch({ type: 'resetLayout' })
+  const addWalkway = (w: Walkway) => dispatch({ type: 'addWalkway', walkway: w })
+  const removeWalkway = (id: string) => dispatch({ type: 'removeWalkway', id })
+  const clearWalkways = () => dispatch({ type: 'clearWalkways' })
 
   const enterEdit = () => {
     setMode('edit')
@@ -79,6 +87,7 @@ export default function App() {
   }
   const enterView = () => {
     setMode('view')
+    setEditTool('move')
     const h = handlesRef.current
     if (h) {
       frameCamera(h, layout.slabW, layout.slabD, config.wallHeight, false)
@@ -118,8 +127,12 @@ export default function App() {
             layout={layout}
             config={config}
             selectedId={selectedId}
+            roomDragEnabled={roomDragEnabled}
+            walkwayActive={walkwayActive}
             onSelect={setSelectedId}
             onPlace={placeRoom}
+            onAddWalkway={addWalkway}
+            onRemoveWalkway={removeWalkway}
             handlesRef={handlesRef}
             onSnapIso={snapIso}
             onReady={handleReady}
@@ -143,18 +156,30 @@ export default function App() {
             </>
           ) : (
             <>
-              <button onClick={resetLayout}>Reset Layout</button>
-              <button className="primary" onClick={enterView}>
-                Done · 3D View
+              <button
+                className={editTool === 'move' ? 'primary' : ''}
+                onClick={() => setEditTool('move')}
+              >
+                Move
               </button>
+              <button
+                className={editTool === 'walkway' ? 'primary' : ''}
+                onClick={() => setEditTool('walkway')}
+              >
+                Draw Walkway
+              </button>
+              {config.walkways.length > 0 && <button onClick={clearWalkways}>Clear Walkways</button>}
+              <button onClick={resetLayout}>Reset Layout</button>
+              <button onClick={enterView}>Done · 3D</button>
             </>
           )}
         </div>
 
         {mode === 'edit' && (
           <div className="edit-hint">
-            Edit mode · drag a room to move it (snaps to grid). Walkway drawing and
-            drag-from-menu are coming next.
+            {editTool === 'walkway'
+              ? 'Walkway tool · drag on the base to draw a corridor strip; click a corridor to erase it.'
+              : 'Edit mode · drag a room to move it (snaps to grid). Switch to Draw Walkway to lay corridors.'}
           </div>
         )}
 
