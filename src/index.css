@@ -418,10 +418,23 @@ button:disabled:hover {
 .cam-toolbar button {
   background: rgba(255, 255, 255, 0.9);
   border-color: var(--hair-strong);
+  color: var(--ink);
   backdrop-filter: blur(4px);
 }
 .cam-toolbar button:hover {
   background: #fff;
+}
+/* Keep primary (active) toolbar buttons readable: the .cam-toolbar rule above
+   otherwise overrides button.primary's accent background, leaving white text
+   on a white fill. */
+.cam-toolbar button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.cam-toolbar button.primary:hover {
+  background: var(--accent);
+  filter: brightness(1.06);
 }
 
 /* Edit-mode hint */
