@@ -3,6 +3,7 @@ import { FloorConfig, Category, ViewToggles } from '../types'
 import { Action } from '../state'
 import { AreaSummary } from '../layout'
 import { roomNo } from '../constants'
+import { SHAPE_PRESETS, shapeByName } from '../shapes'
 
 interface Props {
   config: FloorConfig
@@ -269,6 +270,27 @@ export default function ControlPanel({
                   >
                     <option value="Billable">Billable</option>
                     <option value="Internal">Internal</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="mini-label">Shape</span>
+                  <select
+                    value={room.shapeName ?? 'Square'}
+                    onChange={(e) => {
+                      const sh = shapeByName(e.target.value)
+                      dispatch({
+                        type: 'setShape',
+                        id: room.id,
+                        shapeName: sh.name,
+                        shapePoints: sh.points,
+                      })
+                    }}
+                  >
+                    {SHAPE_PRESETS.map((s) => (
+                      <option key={s.name} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

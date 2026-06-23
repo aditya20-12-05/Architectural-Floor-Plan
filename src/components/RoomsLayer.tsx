@@ -18,7 +18,7 @@ interface Props {
   selectedId: string | null
   roomDragEnabled: boolean
   onSelect: (id: string) => void
-  onPlace: (id: string, px: number, pz: number, pw: number, pd: number) => void
+  onPlace: (id: string, px: number, pz: number) => void
 }
 
 const SNAP = 1 // ft
@@ -102,12 +102,9 @@ export default function RoomsLayer({
     const onUp = () => {
       const drag = dragRef.current
       if (drag.id && drag.active) {
-        const fp = fpRef.current.find((f) => f.id === drag.id)
-        if (fp) {
-          const px = Math.round(drag.x / SNAP) * SNAP
-          const pz = Math.round(drag.z / SNAP) * SNAP
-          cbRef.current.onPlace(drag.id, px, pz, fp.w, fp.d)
-        }
+        const px = Math.round(drag.x / SNAP) * SNAP
+        const pz = Math.round(drag.z / SNAP) * SNAP
+        cbRef.current.onPlace(drag.id, px, pz)
       }
       dragRef.current = { id: null, active: false, sx: 0, sy: 0, x: 0, z: 0 }
       setDraggingId(null)

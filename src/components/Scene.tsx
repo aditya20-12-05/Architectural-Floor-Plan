@@ -19,7 +19,7 @@ interface Props {
   roomDragEnabled: boolean
   walkwayActive: boolean
   onSelect: (id: string) => void
-  onPlace: (id: string, px: number, pz: number, pw: number, pd: number) => void
+  onPlace: (id: string, px: number, pz: number) => void
   onAddWalkway: (w: Walkway) => void
   onRemoveWalkway: (id: string) => void
   handlesRef: React.MutableRefObject<ThreeHandles | null>

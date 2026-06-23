@@ -71,8 +71,8 @@ export default function App() {
     setSelectedId(null)
     dispatch({ type: 'loadSample' })
   }
-  const placeRoom = (id: string, px: number, pz: number, pw: number, pd: number) =>
-    dispatch({ type: 'placeRoom', id, px, pz, pw, pd })
+  const placeRoom = (id: string, px: number, pz: number) =>
+    dispatch({ type: 'placeRoom', id, px, pz })
   const resetLayout = () => dispatch({ type: 'resetLayout' })
   const addWalkway = (w: Walkway) => dispatch({ type: 'addWalkway', walkway: w })
   const removeWalkway = (id: string) => dispatch({ type: 'removeWalkway', id })
@@ -93,8 +93,7 @@ export default function App() {
     ray.setFromCamera(new THREE.Vector2(nx, ny), h.camera)
     const pt = new THREE.Vector3()
     if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), pt)) return
-    const size = Math.max(4, Math.round(Math.sqrt(Math.max(room.area, 1))))
-    placeRoom(id, Math.round(pt.x), Math.round(pt.z), size, size)
+    placeRoom(id, Math.round(pt.x), Math.round(pt.z))
   }
 
   const enterEdit = () => {

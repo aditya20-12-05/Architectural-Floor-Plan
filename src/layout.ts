@@ -1,16 +1,17 @@
 import { FloorConfig, Room } from './types'
 import { SLAB_ASPECT, CORRIDOR_MIN_FT, CORRIDOR_MAX_FT } from './constants'
-
-export type CorridorSide = 'minZ' | 'maxZ'
+import { Pt, bbox, shapeToWorld, shapeByName, doorEdgeIndex } from './shapes'
 
 export interface RoomFootprint {
   id: string
-  cx: number // world x of block centre
-  cz: number // world z of block centre
-  w: number // block width (x)
-  d: number // block depth (z)
-  corridorSide: CorridorSide // which z-wall fronts the corridor (door wall)
-  band: 'north' | 'south'
+  cx: number // centre x
+  cz: number // centre z
+  poly: Pt[] // world polygon
+  doorEdge: number // index of the edge carrying the door
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
 }
 
 export interface CorridorSeg {
@@ -25,7 +26,7 @@ export interface Entrance {
   x: number
   z: number
   width: number
-  dir: number // inward direction along x (+1 / -1)
+  dir: number
 }
 
 export interface Layout {
@@ -35,7 +36,7 @@ export interface Layout {
   corridors: CorridorSeg[]
   entrance: Entrance
   footprints: RoomFootprint[]
-  circulationArea: number // actual corridor area
+  circulationArea: number
 }
 
 export interface AreaSummary {
@@ -52,9 +53,35 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v))
 }
 
-// Double-loaded corridor office: a central spine runs the length of the floor;
-// rooms sit in the two bands either side, each spanning the band depth so every
-// room fronts the corridor. 1 world unit == 1 ft.
+function rectFootprint(id: string, cx: number, cz: number, w: number, d: number, doorEdge: number): RoomFootprint {
+  const hw = w / 2
+  const hd = d / 2
+  const poly: Pt[] = [
+    [cx - hw, cz - hd],
+    [cx + hw, cz - hd],
+    [cx + hw, cz + hd],
+    [cx - hw, cz + hd],
+  ]
+  return { id, cx, cz, poly, doorEdge, ...bbox(poly) }
+}
+
+function shapeFootprint(room: Room, attractors: Pt[]): RoomFootprint {
+  const pts =
+    room.shapePoints && room.shapePoints.length >= 3
+      ? (room.shapePoints as Pt[])
+      : shapeByName(room.shapeName).points
+  const s = Math.sqrt(Math.max(room.area, 1))
+  const poly = shapeToWorld(pts, room.px as number, room.pz as number, s, room.rot ?? 0)
+  return {
+    id: room.id,
+    cx: room.px as number,
+    cz: room.pz as number,
+    poly,
+    doorEdge: doorEdgeIndex(poly, attractors),
+    ...bbox(poly),
+  }
+}
+
 export function computeLayout(config: FloorConfig): Layout {
   const carpet = Math.max(config.carpetArea, 1)
   const slabW = Math.sqrt(carpet * SLAB_ASPECT)
@@ -63,13 +90,11 @@ export function computeLayout(config: FloorConfig): Layout {
   const rooms = config.rooms.filter((r) => r.area > 0)
   const totalRoom = rooms.reduce((s, r) => s + r.area, 0)
 
-  // Corridor width from the walkable budget, clamped to a realistic band.
   const walkable = Math.min(Math.max(config.walkableArea, 0), carpet * 0.6)
   const maxByDepth = slabD * 0.4
   const corridorWidth = clamp(walkable / slabW, CORRIDOR_MIN_FT, Math.min(CORRIDOR_MAX_FT, maxByDepth))
   const bandD = (slabD - corridorWidth) / 2
 
-  // Split rooms into two bands by cumulative area (~half each), preserving order.
   let cum = 0
   let splitIdx = rooms.length
   for (let i = 0; i < rooms.length; i++) {
@@ -86,26 +111,15 @@ export function computeLayout(config: FloorConfig): Layout {
   const southCz = -(corridorWidth / 2 + bandD / 2)
 
   const autoFootprints: RoomFootprint[] = [
-    ...layBand(north, northCz, bandD, slabW, 'minZ', 'north'),
-    ...layBand(south, southCz, bandD, slabW, 'maxZ', 'south'),
+    ...layBand(north, northCz, bandD, slabW, 0),
+    ...layBand(south, southCz, bandD, slabW, 2),
   ]
 
-  // Apply manual placement overrides: a room with px/pz/pw/pd sits where the
-  // user put it; the rest keep their auto-arranged slots.
+  // Override placed rooms with their chosen shape, scaled by area.
   const byId = new Map(autoFootprints.map((f) => [f.id, f]))
+  const attractors: Pt[] = config.walkways.map((w) => [w.x, w.z] as Pt)
   for (const r of config.rooms) {
-    if (r.px != null && r.pz != null && r.pw != null && r.pd != null) {
-      const existing = byId.get(r.id)
-      byId.set(r.id, {
-        id: r.id,
-        cx: r.px,
-        cz: r.pz,
-        w: r.pw,
-        d: r.pd,
-        corridorSide: existing?.corridorSide ?? 'minZ',
-        band: existing?.band ?? 'north',
-      })
-    }
+    if (r.px != null && r.pz != null) byId.set(r.id, shapeFootprint(r, attractors))
   }
   const footprints = Array.from(byId.values())
 
@@ -123,24 +137,17 @@ export function computeLayout(config: FloorConfig): Layout {
   }
 }
 
-// Lay one band as a row of single-depth rooms along x, widths proportional to
-// area, scaled to fill the floor length so the band reads as a tidy run.
 function layBand(
   list: Room[],
   cz: number,
   bandD: number,
   slabW: number,
-  corridorSide: CorridorSide,
-  band: 'north' | 'south'
+  doorEdge: number
 ): RoomFootprint[] {
   if (list.length === 0 || bandD <= 0) return []
-  // Widths proportional to area, scaled to fill the floor length.
-  const sumA = list.reduce((s, r) => s + r.area, 0)
-  const scale = sumA > 0 ? slabW / (sumA / bandD) : 1
+  const scale = slabW / (list.reduce((s, r) => s + r.area, 0) / bandD || 1)
   let widths = list.map((r) => (r.area / bandD) * scale)
 
-  // Enforce a minimum room width so small rooms don't become slivers; the
-  // shortfall is taken proportionally from the wider (flexible) rooms.
   const minW = Math.min(6, slabW / list.length)
   for (let iter = 0; iter < 4; iter++) {
     const fixed = widths.map((w) => w <= minW + 1e-6)
@@ -164,7 +171,7 @@ function layBand(
   let x = -slabW / 2
   for (let i = 0; i < list.length; i++) {
     const w = widths[i]
-    fps.push({ id: list[i].id, cx: x + w / 2, cz, w, d: bandD, corridorSide, band })
+    fps.push(rectFootprint(list[i].id, x + w / 2, cz, w, bandD, doorEdge))
     x += w
   }
   return fps

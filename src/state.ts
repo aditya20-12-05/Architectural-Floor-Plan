@@ -10,7 +10,8 @@ export type Action =
   | { type: 'updateRoom'; id: string; patch: Partial<Room> }
   | { type: 'reorder'; order: string[] }
   | { type: 'swap'; a: string; b: string }
-  | { type: 'placeRoom'; id: string; px: number; pz: number; pw: number; pd: number }
+  | { type: 'placeRoom'; id: string; px: number; pz: number }
+  | { type: 'setShape'; id: string; shapeName: string; shapePoints: [number, number][] }
   | { type: 'resetLayout' }
   | { type: 'addWalkway'; walkway: Walkway }
   | { type: 'removeWalkway'; id: string }
@@ -74,8 +75,16 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
       return {
         ...state,
         rooms: state.rooms.map((r) =>
+          r.id === action.id ? { ...r, px: action.px, pz: action.pz } : r
+        ),
+      }
+
+    case 'setShape':
+      return {
+        ...state,
+        rooms: state.rooms.map((r) =>
           r.id === action.id
-            ? { ...r, px: action.px, pz: action.pz, pw: action.pw, pd: action.pd }
+            ? { ...r, shapeName: action.shapeName, shapePoints: action.shapePoints }
             : r
         ),
       }
@@ -84,11 +93,10 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
       return {
         ...state,
         rooms: state.rooms.map((r) => {
-          const { px, pz, pw, pd, ...rest } = r
+          const { px, pz, rot, ...rest } = r
           void px
           void pz
-          void pw
-          void pd
+          void rot
           return rest
         }),
       }

@@ -6,11 +6,14 @@ export interface Room {
   area: number // sq ft
   category: Category
   flagship: boolean
-  // Manual placement on the base (feet). When set, overrides the auto layout.
+  // Shape (chosen in the menu): a normalized unit-area polygon + display name.
+  shapeName?: string
+  shapePoints?: [number, number][]
+  // Manual placement on the base (feet) + rotation (radians). When px/pz are
+  // set, the room is placed manually and overrides the auto layout.
   px?: number
   pz?: number
-  pw?: number
-  pd?: number
+  rot?: number
 }
 
 export interface ViewToggles {

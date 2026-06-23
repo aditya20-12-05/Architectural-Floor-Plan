@@ -41,13 +41,21 @@ function bool(v: unknown, fallback: boolean): boolean {
 export function normalizeConfig(input: any): FloorConfig {
   const d = SAMPLE_CONFIG
   const rawRooms = Array.isArray(input?.rooms) ? input.rooms : d.rooms
-  const rooms: Room[] = rawRooms.map((r: any, i: number) => ({
-    id: str(r?.id, '') || uid(),
-    name: str(r?.name, `Room ${i + 1}`),
-    area: Math.max(0, num(r?.area, 100)),
-    category: (r?.category === 'Internal' ? 'Internal' : 'Billable') as Category,
-    flagship: bool(r?.flagship, false),
-  }))
+  const rooms: Room[] = rawRooms.map((r: any, i: number) => {
+    const room: Room = {
+      id: str(r?.id, '') || uid(),
+      name: str(r?.name, `Room ${i + 1}`),
+      area: Math.max(0, num(r?.area, 100)),
+      category: (r?.category === 'Internal' ? 'Internal' : 'Billable') as Category,
+      flagship: bool(r?.flagship, false),
+    }
+    if (typeof r?.px === 'number') room.px = r.px
+    if (typeof r?.pz === 'number') room.pz = r.pz
+    if (typeof r?.rot === 'number') room.rot = r.rot
+    if (typeof r?.shapeName === 'string') room.shapeName = r.shapeName
+    if (Array.isArray(r?.shapePoints)) room.shapePoints = r.shapePoints as [number, number][]
+    return room
+  })
   const seen = new Set<string>()
   for (const r of rooms) {
     while (seen.has(r.id)) r.id = uid()
