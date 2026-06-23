@@ -3,10 +3,10 @@ import * as THREE from 'three'
 import { useThree, ThreeEvent } from '@react-three/fiber'
 import { Line } from '@react-three/drei'
 import { Walkway } from '../types'
-import { PALETTE, uid } from '../constants'
+import { PALETTE, uid, DEFAULT_WALK_W } from '../constants'
 
-const SNAP = 1
-const snap = (v: number) => Math.round(v / SNAP) * SNAP
+const MIN_LEN = 3
+const snap = (v: number) => Math.round(v)
 
 interface Props {
   walkways: Walkway[]
@@ -17,23 +17,124 @@ interface Props {
   onRemove: (id: string) => void
 }
 
-function rectOutline(x: number, z: number, w: number, d: number): [number, number, number][] {
-  const hw = w / 2
-  const hd = d / 2
-  return [
-    [x - hw, 0.05, z - hd],
-    [x + hw, 0.05, z - hd],
-    [x + hw, 0.05, z + hd],
-    [x - hw, 0.05, z + hd],
-    [x - hw, 0.05, z - hd],
-  ]
+interface Seg {
+  x1: number
+  z1: number
+  x2: number
+  z2: number
+}
+
+// Stadium ("capsule") outline in world XZ around the segment a->b.
+function capsulePoints(s: Seg, width: number, segs = 14): [number, number][] {
+  const dx = s.x2 - s.x1
+  const dz = s.z2 - s.z1
+  const L = Math.hypot(dx, dz) || 1
+  const ux = dx / L
+  const uz = dz / L
+  const nx = -uz
+  const nz = ux
+  const hw = Math.max(width / 2, 0.1)
+  const angN = Math.atan2(nz, nx)
+  const pts: [number, number][] = []
+  pts.push([s.x1 + nx * hw, s.z1 + nz * hw])
+  pts.push([s.x2 + nx * hw, s.z2 + nz * hw])
+  for (let i = 1; i < segs; i++) {
+    const t = angN - Math.PI * (i / segs)
+    pts.push([s.x2 + Math.cos(t) * hw, s.z2 + Math.sin(t) * hw])
+  }
+  pts.push([s.x2 - nx * hw, s.z2 - nz * hw])
+  pts.push([s.x1 - nx * hw, s.z1 - nz * hw])
+  for (let i = 1; i < segs; i++) {
+    const t = angN + Math.PI - Math.PI * (i / segs)
+    pts.push([s.x1 + Math.cos(t) * hw, s.z1 + Math.sin(t) * hw])
+  }
+  return pts
+}
+
+function WalkSeg({
+  wk,
+  active,
+  onRemove,
+}: {
+  wk: Walkway
+  active: boolean
+  onRemove: (id: string) => void
+}) {
+  const pts = useMemo(() => capsulePoints(wk, wk.width), [wk])
+  const geo = useMemo(() => {
+    const shape = new THREE.Shape()
+    shape.moveTo(pts[0][0], pts[0][1])
+    for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1])
+    shape.closePath()
+    return new THREE.ShapeGeometry(shape)
+  }, [pts])
+  useEffect(() => () => geo.dispose(), [geo])
+  const outline = useMemo(
+    () => [...pts, pts[0]].map(([x, z]) => [x, 0.05, z] as [number, number, number]),
+    [pts]
+  )
+  return (
+    <group>
+      <mesh
+        geometry={geo}
+        position={[0, 0.04, 0]}
+        rotation={[Math.PI / 2, 0, 0]}
+        onPointerDown={
+          active
+            ? (e) => {
+                e.stopPropagation()
+                onRemove(wk.id)
+              }
+            : undefined
+        }
+        onPointerOver={active ? () => (document.body.style.cursor = 'pointer') : undefined}
+        onPointerOut={active ? () => (document.body.style.cursor = 'default') : undefined}
+      >
+        <meshBasicMaterial color={PALETTE.accent} transparent opacity={0.1} side={THREE.DoubleSide} />
+      </mesh>
+      <Line points={outline} color={PALETTE.accent} lineWidth={1} transparent opacity={0.5} />
+      {/* dashed centreline reads as a path */}
+      <Line
+        points={[
+          [wk.x1, 0.06, wk.z1],
+          [wk.x2, 0.06, wk.z2],
+        ]}
+        color={PALETTE.accent}
+        lineWidth={1.4}
+        dashed
+        dashSize={2.2}
+        gapSize={1.6}
+      />
+    </group>
+  )
+}
+
+function GhostSeg({ seg }: { seg: Seg }) {
+  const pts = useMemo(() => capsulePoints(seg, DEFAULT_WALK_W), [seg])
+  const outline = useMemo(
+    () => [...pts, pts[0]].map(([x, z]) => [x, 0.07, z] as [number, number, number]),
+    [pts]
+  )
+  return (
+    <group>
+      <Line points={outline} color={PALETTE.accent} lineWidth={1.6} dashed dashSize={1.6} gapSize={1.1} />
+      <Line
+        points={[
+          [seg.x1, 0.08, seg.z1],
+          [seg.x2, 0.08, seg.z2],
+        ]}
+        color={PALETTE.accent}
+        lineWidth={1}
+      />
+    </group>
+  )
 }
 
 export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, onRemove }: Props) {
   const camera = useThree((s) => s.camera)
   const gl = useThree((s) => s.gl)
   const drawRef = useRef({ drawing: false, sx: 0, sz: 0 })
-  const [ghost, setGhost] = useState<{ x: number; z: number; w: number; d: number } | null>(null)
+  const [ghost, setGhost] = useState<Seg | null>(null)
   const raycaster = useMemo(() => new THREE.Raycaster(), [])
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
   const cbRef = useRef(onAdd)
@@ -43,7 +144,7 @@ export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, on
     if (!active) return
     e.stopPropagation()
     drawRef.current = { drawing: true, sx: e.point.x, sz: e.point.z }
-    setGhost({ x: e.point.x, z: e.point.z, w: 0, d: 0 })
+    setGhost({ x1: e.point.x, z1: e.point.z, x2: e.point.x, z2: e.point.z })
   }
 
   useEffect(() => {
@@ -57,17 +158,22 @@ export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, on
       const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera)
       if (raycaster.ray.intersectPlane(plane, pt)) {
-        const cx = (d.sx + pt.x) / 2
-        const cz = (d.sz + pt.z) / 2
-        setGhost({ x: cx, z: cz, w: Math.abs(pt.x - d.sx), d: Math.abs(pt.z - d.sz) })
+        setGhost({ x1: d.sx, z1: d.sz, x2: pt.x, z2: pt.z })
       }
     }
     const onUp = () => {
       if (!drawRef.current.drawing) return
       drawRef.current.drawing = false
       setGhost((g) => {
-        if (g && g.w >= 2 && g.d >= 2) {
-          cbRef.current({ id: uid(), x: snap(g.x), z: snap(g.z), w: snap(g.w), d: snap(g.d) })
+        if (g && Math.hypot(g.x2 - g.x1, g.z2 - g.z1) >= MIN_LEN) {
+          cbRef.current({
+            id: uid(),
+            x1: snap(g.x1),
+            z1: snap(g.z1),
+            x2: snap(g.x2),
+            z2: snap(g.z2),
+            width: DEFAULT_WALK_W,
+          })
         }
         return null
       })
@@ -83,46 +189,14 @@ export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, on
   return (
     <group>
       {walkways.map((wk) => (
-        <group key={wk.id}>
-          <mesh
-            position={[wk.x, 0.03, wk.z]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            onPointerDown={
-              active
-                ? (e) => {
-                    e.stopPropagation()
-                    onRemove(wk.id)
-                  }
-                : undefined
-            }
-          >
-            <planeGeometry args={[wk.w, wk.d]} />
-            <meshBasicMaterial color={PALETTE.accent} transparent opacity={0.12} />
-          </mesh>
-          <Line points={rectOutline(wk.x, wk.z, wk.w, wk.d)} color={PALETTE.accent} lineWidth={1} />
-        </group>
+        <WalkSeg key={wk.id} wk={wk} active={active} onRemove={onRemove} />
       ))}
 
-      {ghost && (
-        <group>
-          <mesh position={[ghost.x, 0.04, ghost.z]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[Math.max(ghost.w, 0.01), Math.max(ghost.d, 0.01)]} />
-            <meshBasicMaterial color={PALETTE.accent} transparent opacity={0.2} />
-          </mesh>
-          <Line
-            points={rectOutline(ghost.x, ghost.z, ghost.w, ghost.d)}
-            color={PALETTE.accent}
-            lineWidth={1.6}
-            dashed
-            dashSize={1.5}
-            gapSize={1}
-          />
-        </group>
-      )}
+      {ghost && Math.hypot(ghost.x2 - ghost.x1, ghost.z2 - ghost.z1) > 0.5 && <GhostSeg seg={ghost} />}
 
       {active && (
         <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]} onPointerDown={startDraw}>
-          <planeGeometry args={[slabW * 1.6, slabD * 1.6]} />
+          <planeGeometry args={[slabW * 1.8, slabD * 1.8]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       )}

@@ -93,7 +93,9 @@ export function computeLayout(config: FloorConfig): Layout {
   const { slabW, slabD } = slabDims(config.carpetArea)
   const corridorWidth = corridorW(config, slabW, slabD)
   const attractors: Pt[] =
-    config.walkways.length > 0 ? config.walkways.map((w) => [w.x, w.z] as Pt) : [[0, 0]]
+    config.walkways.length > 0
+      ? config.walkways.map((w) => [(w.x1 + w.x2) / 2, (w.z1 + w.z2) / 2] as Pt)
+      : [[0, 0]]
 
   const footprints = config.rooms
     .filter((r) => r.px != null && r.pz != null && r.area > 0)

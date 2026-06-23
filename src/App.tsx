@@ -288,12 +288,12 @@ export default function App() {
               <button
                 className={editTool === 'walkway' ? 'primary' : ''}
                 onClick={() => setEditTool('walkway')}
-                title="Drag on the base to draw corridor strips; click one to erase"
+                title="Drag a path from start to end to draw a walkway; click one to erase"
               >
                 Draw Walkway
               </button>
               {config.walkways.length > 0 && (
-                <button onClick={clearWalkways} title="Remove all corridor strips">
+                <button onClick={clearWalkways} title="Remove all walkways">
                   Clear Walkways
                 </button>
               )}
@@ -325,7 +325,7 @@ export default function App() {
         {mode === 'edit' && (
           <div className="edit-hint">
             {editTool === 'walkway'
-              ? 'Walkway tool · drag on the base to draw a corridor strip; click a corridor to erase it.'
+              ? 'Walkway tool · drag from start to end to draw a walkway path (chain several for L / U routes); click a walkway to erase it.'
               : 'Edit · drag a room to move it; click to select, then drag white corners to reshape (area kept) or the round handle to rotate. Keys: R rotate · arrows nudge · Delete remove · Esc deselect · ⌘/Ctrl+Z undo.'}
           </div>
         )}
@@ -371,7 +371,7 @@ export default function App() {
                   the base, or hit <b>Auto-arrange</b> to tile everything into a corridor.
                 </li>
                 <li>
-                  <b>Draw Walkway</b> lets you drag corridor strips; rooms snap to each other and turn
+                  <b>Draw Walkway</b> lets you drag walkway paths; rooms snap to each other and turn
                   red if they overlap.
                 </li>
                 <li>

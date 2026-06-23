@@ -20,6 +20,9 @@ export const GRID_FT = 5
 export const CORRIDOR_MIN_FT = 4
 export const CORRIDOR_MAX_FT = 14
 
+// Default width (feet) of a hand-drawn walkway path segment.
+export const DEFAULT_WALK_W = 5
+
 // Architectural dimensions (feet).
 export const WALL_THICKNESS_FT = 0.5
 export const DOOR_WIDTH_FT = 3.2

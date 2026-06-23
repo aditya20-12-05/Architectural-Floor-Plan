@@ -1,6 +1,6 @@
-import { FloorConfig, Room, Category, ViewToggles, TitleBlockInfo } from './types'
+import { FloorConfig, Room, Category, ViewToggles, TitleBlockInfo, Walkway } from './types'
 import { SAMPLE_CONFIG } from './sampleConfig'
-import { uid } from './constants'
+import { uid, DEFAULT_WALK_W } from './constants'
 import { ensurePlaced } from './layout'
 
 const KEY = 'blueprint-floorplan:config:v1'
@@ -80,14 +80,28 @@ export function normalizeConfig(input: any): FloorConfig {
     headline: str(input?.title?.headline, d.title.headline ?? 'The floor, drawn to plan.'),
     brand: str(input?.title?.brand, d.title.brand ?? 'THE SPACE'),
   }
-  const walkways = Array.isArray(input?.walkways)
-    ? input.walkways.map((w: any) => ({
-        id: str(w?.id, '') || uid(),
-        x: num(w?.x, 0),
-        z: num(w?.z, 0),
-        w: Math.max(1, num(w?.w, 4)),
-        d: Math.max(1, num(w?.d, 4)),
-      }))
+  const walkways: Walkway[] = Array.isArray(input?.walkways)
+    ? input.walkways.map((w: any): Walkway => {
+        const id = str(w?.id, '') || uid()
+        if (typeof w?.x1 === 'number' && typeof w?.x2 === 'number') {
+          return {
+            id,
+            x1: num(w.x1, 0),
+            z1: num(w.z1, 0),
+            x2: num(w.x2, 0),
+            z2: num(w.z2, 0),
+            width: Math.max(1, num(w?.width, DEFAULT_WALK_W)),
+          }
+        }
+        // legacy rectangle {x,z,w,d} -> a centreline segment along its longer axis
+        const x = num(w?.x, 0)
+        const z = num(w?.z, 0)
+        const ww = Math.max(1, num(w?.w, 4))
+        const dd = Math.max(1, num(w?.d, 4))
+        return ww >= dd
+          ? { id, x1: x - ww / 2, z1: z, x2: x + ww / 2, z2: z, width: dd }
+          : { id, x1: x, z1: z - dd / 2, x2: x, z2: z + dd / 2, width: ww }
+      })
     : []
 
   return {

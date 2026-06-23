@@ -38,10 +38,13 @@ export interface TitleBlockInfo {
 
 export interface Walkway {
   id: string
-  x: number // centre x (ft)
-  z: number // centre z (ft)
-  w: number // width (ft)
-  d: number // depth (ft)
+  // A path segment drawn start -> end (ft), rendered as a rounded corridor of
+  // the given width. Chain several to build an L / U / branching circulation.
+  x1: number
+  z1: number
+  x2: number
+  z2: number
+  width: number // ft
 }
 
 export interface FloorConfig {
