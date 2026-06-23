@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Canvas } from '@react-three/fiber'
-import { reducer } from './state'
+import { historyReducer, initHistory } from './state'
 import { loadConfig, saveConfig } from './storage'
 import { computeLayout, summarizeAreas } from './layout'
 import { AREA_TOLERANCE } from './constants'
@@ -15,7 +15,12 @@ import RoomSchedule from './components/RoomSchedule'
 import TitleBlock from './components/TitleBlock'
 
 export default function App() {
-  const [config, dispatch] = useReducer(reducer, undefined, loadConfig)
+  const [hist, dispatch] = useReducer(historyReducer, undefined, () => initHistory(loadConfig()))
+  const config = hist.present
+  const canUndo = hist.past.length > 0
+  const canRedo = hist.future.length > 0
+  const undo = () => dispatch({ type: 'undo' })
+  const redo = () => dispatch({ type: 'redo' })
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [editTool, setEditTool] = useState<'move' | 'walkway'>('move')
@@ -40,6 +45,57 @@ export default function App() {
   useEffect(() => {
     if (selectedId && !config.rooms.some((r) => r.id === selectedId)) setSelectedId(null)
   }, [config.rooms, selectedId])
+
+  // Keyboard shortcuts (ignored while typing in a field).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
+      const meta = e.metaKey || e.ctrlKey
+      if (meta && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) dispatch({ type: 'redo' })
+        else dispatch({ type: 'undo' })
+        return
+      }
+      if (meta && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        dispatch({ type: 'redo' })
+        return
+      }
+      if (e.key === 'Escape') {
+        setSelectedId(null)
+        return
+      }
+      const room = config.rooms.find((r) => r.id === selectedId)
+      if (!room || room.px == null || room.pz == null) return
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        dispatch({ type: 'unplaceRoom', id: room.id })
+        setSelectedId(null)
+        return
+      }
+      if (e.key.toLowerCase() === 'r') {
+        dispatch({
+          type: 'setRot',
+          id: room.id,
+          rot: (room.rot ?? 0) + (e.shiftKey ? -Math.PI / 2 : Math.PI / 2),
+        })
+        return
+      }
+      const step = e.shiftKey ? 5 : 1
+      const nudge = (dx: number, dz: number) => {
+        e.preventDefault()
+        dispatch({ type: 'placeRoom', id: room.id, px: (room.px as number) + dx, pz: (room.pz as number) + dz })
+      }
+      if (e.key === 'ArrowLeft') nudge(-step, 0)
+      else if (e.key === 'ArrowRight') nudge(step, 0)
+      else if (e.key === 'ArrowUp') nudge(0, -step)
+      else if (e.key === 'ArrowDown') nudge(0, step)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [config, selectedId])
 
   const reset = () => {
     if (handlesRef.current)
@@ -172,6 +228,12 @@ export default function App() {
         </Canvas>
 
         <div className="cam-toolbar">
+          <button onClick={undo} disabled={!canUndo} title="Undo (Cmd/Ctrl+Z)">
+            ↶
+          </button>
+          <button onClick={redo} disabled={!canRedo} title="Redo (Cmd/Ctrl+Shift+Z)">
+            ↷
+          </button>
           {mode === 'view' ? (
             <>
               <button onClick={reset}>Reset View</button>
@@ -211,7 +273,7 @@ export default function App() {
           <div className="edit-hint">
             {editTool === 'walkway'
               ? 'Walkway tool · drag on the base to draw a corridor strip; click a corridor to erase it.'
-              : 'Edit · drag a room to move it. Click a room, then drag its white corners to reshape (area kept) or the round handle to rotate.'}
+              : 'Edit · drag a room to move it; click to select, then drag white corners to reshape (area kept) or the round handle to rotate. Keys: R rotate · arrows nudge · Delete remove · Esc deselect · ⌘/Ctrl+Z undo.'}
           </div>
         )}
 

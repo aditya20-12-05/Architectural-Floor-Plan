@@ -301,6 +301,14 @@ button.danger:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+button:disabled:hover {
+  border-color: var(--field-edge);
+  color: var(--ink-soft);
+}
 .btn-row {
   display: flex;
   gap: 8px;

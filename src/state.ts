@@ -13,6 +13,7 @@ export type Action =
   | { type: 'placeRoom'; id: string; px: number; pz: number }
   | { type: 'setShape'; id: string; shapeName: string; shapePoints: [number, number][] }
   | { type: 'setRot'; id: string; rot: number }
+  | { type: 'unplaceRoom'; id: string }
   | { type: 'resetLayout' }
   | { type: 'addWalkway'; walkway: Walkway }
   | { type: 'removeWalkway'; id: string }
@@ -96,6 +97,19 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
         rooms: state.rooms.map((r) => (r.id === action.id ? { ...r, rot: action.rot } : r)),
       }
 
+    case 'unplaceRoom':
+      return {
+        ...state,
+        rooms: state.rooms.map((r) => {
+          if (r.id !== action.id) return r
+          const { px, pz, rot, ...rest } = r
+          void px
+          void pz
+          void rot
+          return rest
+        }),
+      }
+
     case 'resetLayout':
       return {
         ...state,
@@ -131,5 +145,61 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
 
     default:
       return state
+  }
+}
+
+// ---- Undo / redo history wrapper -----------------------------------------
+export interface HistoryState {
+  past: FloorConfig[]
+  present: FloorConfig
+  future: FloorConfig[]
+  lastKey: string | null
+}
+
+export type HistoryAction = Action | { type: 'undo' } | { type: 'redo' }
+
+const HISTORY_LIMIT = 80
+
+export function initHistory(present: FloorConfig): HistoryState {
+  return { past: [], present, future: [], lastKey: null }
+}
+
+export function historyReducer(state: HistoryState, action: HistoryAction): HistoryState {
+  if (action.type === 'undo') {
+    if (state.past.length === 0) return state
+    const previous = state.past[state.past.length - 1]
+    return {
+      past: state.past.slice(0, -1),
+      present: previous,
+      future: [state.present, ...state.future],
+      lastKey: null,
+    }
+  }
+  if (action.type === 'redo') {
+    if (state.future.length === 0) return state
+    return {
+      past: [...state.past, state.present],
+      present: state.future[0],
+      future: state.future.slice(1),
+      lastKey: null,
+    }
+  }
+
+  const newPresent = reducer(state.present, action)
+  if (newPresent === state.present) return state
+
+  const a = action as { id?: string; field?: string; key?: string }
+  const key = `${action.type}:${a.id ?? a.field ?? a.key ?? ''}`
+
+  // Coalesce continuous edits of the same target into a single undo step.
+  if (key === state.lastKey && state.past.length > 0) {
+    return { ...state, present: newPresent }
+  }
+
+  return {
+    past: [...state.past, state.present].slice(-HISTORY_LIMIT),
+    present: newPresent,
+    future: [],
+    lastKey: key,
   }
 }
