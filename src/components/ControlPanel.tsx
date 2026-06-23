@@ -224,8 +224,12 @@ export default function ControlPanel({
                 <span
                   className="drag-handle"
                   draggable
-                  title="Drag to reorder"
-                  onDragStart={() => setDragId(room.id)}
+                  title="Drag to reorder, or onto the plan to place"
+                  onDragStart={(e) => {
+                    setDragId(room.id)
+                    e.dataTransfer.setData('text/plain', room.id)
+                    e.dataTransfer.effectAllowed = 'copyMove'
+                  }}
                   onDragEnd={() => setDragId(null)}
                 >
                   ⠿
@@ -344,8 +348,8 @@ export default function ControlPanel({
       </div>
 
       <p className="footer-note">
-        Drag <span className="kbd">⠿</span> to reorder · click a block to select · orbit with drag,
-        zoom with scroll. Config auto-saves to this browser.
+        Drag <span className="kbd">⠿</span> to reorder, or onto the plan to place a room ·{' '}
+        <b>Edit Layout</b> (top-right) for top-down editing and walkways · config auto-saves.
       </p>
     </div>
   )

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import * as THREE from 'three'
 import { Canvas } from '@react-three/fiber'
 import { reducer } from './state'
 import { loadConfig, saveConfig } from './storage'
@@ -77,6 +78,25 @@ export default function App() {
   const removeWalkway = (id: string) => dispatch({ type: 'removeWalkway', id })
   const clearWalkways = () => dispatch({ type: 'clearWalkways' })
 
+  // Drag a room chip from the menu onto the base to place it there.
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const id = e.dataTransfer.getData('text/plain')
+    const h = handlesRef.current
+    if (!id || !h) return
+    const room = config.rooms.find((r) => r.id === id)
+    if (!room) return
+    const rect = h.gl.domElement.getBoundingClientRect()
+    const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1
+    const ray = new THREE.Raycaster()
+    ray.setFromCamera(new THREE.Vector2(nx, ny), h.camera)
+    const pt = new THREE.Vector3()
+    if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), pt)) return
+    const size = Math.max(4, Math.round(Math.sqrt(Math.max(room.area, 1))))
+    placeRoom(id, Math.round(pt.x), Math.round(pt.z), size, size)
+  }
+
   const enterEdit = () => {
     setMode('edit')
     const h = handlesRef.current
@@ -115,7 +135,11 @@ export default function App() {
         onImportJSON={importJSON}
         onLoadSample={loadSample}
       />
-      <div className="stage">
+      <div
+        className="stage"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+      >
         <Canvas
           camera={{ position: initialCam, fov: 30, near: 0.1, far: 4000 }}
           gl={{ preserveDrawingBuffer: true, antialias: true }}
