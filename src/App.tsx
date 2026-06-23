@@ -14,6 +14,8 @@ import ControlPanel from './components/ControlPanel'
 import RoomSchedule from './components/RoomSchedule'
 import TitleBlock from './components/TitleBlock'
 
+const WELCOME_KEY = 'blueprint-floorplan:welcomed:v1'
+
 export default function App() {
   const [hist, dispatch] = useReducer(historyReducer, undefined, () => initHistory(loadConfig()))
   const config = hist.present
@@ -24,6 +26,21 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [editTool, setEditTool] = useState<'move' | 'walkway'>('move')
+  const [showWelcome, setShowWelcome] = useState(() => {
+    try {
+      return !localStorage.getItem(WELCOME_KEY)
+    } catch {
+      return false
+    }
+  })
+  const dismissWelcome = () => {
+    try {
+      localStorage.setItem(WELCOME_KEY, '1')
+    } catch {
+      /* ignore */
+    }
+    setShowWelcome(false)
+  }
   const handlesRef = useRef<ThreeHandles | null>(null)
 
   const roomDragEnabled = mode === 'view' || editTool === 'move'
@@ -238,15 +255,24 @@ export default function App() {
           </button>
           {mode === 'view' ? (
             <>
-              <button onClick={reset}>Reset View</button>
-              <button onClick={snapIso}>Isometric</button>
+              <button onClick={reset} title="Reset to the default 3/4 view">
+                Reset View
+              </button>
+              <button onClick={snapIso} title="Snap to a true isometric angle">
+                Isometric
+              </button>
               <button
                 className={config.view.lockIso ? 'primary' : ''}
                 onClick={() => dispatch({ type: 'toggleView', key: 'lockIso' })}
+                title="Lock the camera to the isometric angle (disables orbit)"
               >
                 {config.view.lockIso ? 'Locked' : 'Lock Iso'}
               </button>
-              <button className="primary" onClick={enterEdit}>
+              <button
+                className="primary"
+                onClick={enterEdit}
+                title="Top-down mode: move, reshape and rotate rooms, draw walkways"
+              >
                 Edit Layout
               </button>
             </>
@@ -255,21 +281,36 @@ export default function App() {
               <button
                 className={editTool === 'move' ? 'primary' : ''}
                 onClick={() => setEditTool('move')}
+                title="Drag rooms to move them; they snap to neighbours"
               >
                 Move
               </button>
               <button
                 className={editTool === 'walkway' ? 'primary' : ''}
                 onClick={() => setEditTool('walkway')}
+                title="Drag on the base to draw corridor strips; click one to erase"
               >
                 Draw Walkway
               </button>
-              {config.walkways.length > 0 && <button onClick={clearWalkways}>Clear Walkways</button>}
-              <button onClick={autoArrange}>Auto-arrange</button>
-              <button onClick={resetLayout}>Clear Plan</button>
-              <button onClick={enterView}>Done · 3D</button>
+              {config.walkways.length > 0 && (
+                <button onClick={clearWalkways} title="Remove all corridor strips">
+                  Clear Walkways
+                </button>
+              )}
+              <button onClick={autoArrange} title="Tile every room into a double-loaded corridor">
+                Auto-arrange
+              </button>
+              <button onClick={resetLayout} title="Send all rooms back to the menu (empty the plan)">
+                Clear Plan
+              </button>
+              <button onClick={enterView} title="Return to the 3D orbit view">
+                Done · 3D
+              </button>
             </>
           )}
+          <button className="help-btn" onClick={() => setShowWelcome(true)} title="How it works">
+            ?
+          </button>
         </div>
 
         {overlapCount > 0 && (
@@ -286,6 +327,62 @@ export default function App() {
             {editTool === 'walkway'
               ? 'Walkway tool · drag on the base to draw a corridor strip; click a corridor to erase it.'
               : 'Edit · drag a room to move it; click to select, then drag white corners to reshape (area kept) or the round handle to rotate. Keys: R rotate · arrows nudge · Delete remove · Esc deselect · ⌘/Ctrl+Z undo.'}
+          </div>
+        )}
+
+        {layout.footprints.length === 0 && !showWelcome && (
+          <div className="empty-plan">
+            <p>No rooms on the plan yet.</p>
+            <p className="sub">
+              Drag a room's <span className="kbd">⠿</span> handle from the menu onto the base, or tile
+              them all at once:
+            </p>
+            <button
+              className="primary"
+              onClick={() => {
+                if (mode === 'view') enterEdit()
+                autoArrange()
+              }}
+            >
+              Auto-arrange rooms
+            </button>
+          </div>
+        )}
+
+        {showWelcome && (
+          <div className="welcome-backdrop" onClick={dismissWelcome}>
+            <div className="welcome-card" onClick={(e) => e.stopPropagation()}>
+              <h2>Isometric Floor-Plan Generator</h2>
+              <p className="welcome-lead">
+                Lay out an office floor in 3D — rooms size themselves to the areas you enter and stay
+                balanced against the carpet area.
+              </p>
+              <ol className="welcome-steps">
+                <li>
+                  <b>Edit rooms</b> in the left panel — name, area, category and shape. Add or remove
+                  rooms anytime.
+                </li>
+                <li>
+                  <b>Edit Layout</b> (top-right) opens a top-down view. Drag rooms to move them, the
+                  white corners to reshape (area kept), the round handle to rotate.
+                </li>
+                <li>
+                  <b>Place from the menu</b> — drag a room's <span className="kbd">⠿</span> handle onto
+                  the base, or hit <b>Auto-arrange</b> to tile everything into a corridor.
+                </li>
+                <li>
+                  <b>Draw Walkway</b> lets you drag corridor strips; rooms snap to each other and turn
+                  red if they overlap.
+                </li>
+                <li>
+                  <b>Done · 3D</b> returns to the orbit view. Export PNG or JSON whenever you like — it
+                  all auto-saves.
+                </li>
+              </ol>
+              <button className="primary" onClick={dismissWelcome}>
+                Got it
+              </button>
+            </div>
           </div>
         )}
 
