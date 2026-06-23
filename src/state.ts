@@ -21,6 +21,7 @@ export type Action =
   | { type: 'addWalkway'; walkway: Walkway }
   | { type: 'removeWalkway'; id: string }
   | { type: 'clearWalkways' }
+  | { type: 'setSlabShape'; shapeName: string; points: [number, number][] }
   | { type: 'toggleView'; key: keyof ViewToggles }
   | { type: 'setTitle'; field: keyof TitleBlockInfo; value: string }
   | { type: 'import'; config: unknown }
@@ -144,6 +145,9 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
 
     case 'clearWalkways':
       return { ...state, walkways: [] }
+
+    case 'setSlabShape':
+      return { ...state, slabShapeName: action.shapeName, slabPoints: action.points }
 
     case 'toggleView':
       return { ...state, view: { ...state.view, [action.key]: !state.view[action.key] } }

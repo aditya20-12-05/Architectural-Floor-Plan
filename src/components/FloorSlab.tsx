@@ -1,29 +1,39 @@
+import { useEffect, useMemo } from 'react'
+import * as THREE from 'three'
 import { Line } from '@react-three/drei'
 import { PALETTE } from '../constants'
+import { Pt } from '../shapes'
 
-interface Props {
-  slabW: number
-  slabD: number
-}
+// The floor plate, drawn from its (possibly non-rectangular) outline polygon.
+export default function FloorSlab({ slabPoly }: { slabPoly: Pt[] }) {
+  const valid = Array.isArray(slabPoly) && slabPoly.length >= 3
+  const geo = useMemo(() => {
+    const shape = new THREE.Shape()
+    if (valid) {
+      shape.moveTo(slabPoly[0][0], slabPoly[0][1])
+      for (let i = 1; i < slabPoly.length; i++) shape.lineTo(slabPoly[i][0], slabPoly[i][1])
+      shape.closePath()
+    }
+    return new THREE.ShapeGeometry(shape)
+  }, [slabPoly, valid])
+  useEffect(() => () => geo.dispose(), [geo])
 
-const THICK = 0.4
+  const outline = useMemo(
+    () =>
+      valid
+        ? [...slabPoly, slabPoly[0]].map(([x, z]) => [x, 0.02, z] as [number, number, number])
+        : [],
+    [slabPoly, valid]
+  )
 
-export default function FloorSlab({ slabW, slabD }: Props) {
-  const hw = slabW / 2
-  const hd = slabD / 2
-  const outline: [number, number, number][] = [
-    [-hw, 0.02, -hd],
-    [hw, 0.02, -hd],
-    [hw, 0.02, hd],
-    [-hw, 0.02, hd],
-    [-hw, 0.02, -hd],
-  ]
+  if (!valid) return null
+
   return (
     <group>
-      <mesh position={[0, -THICK / 2, 0]}>
-        <boxGeometry args={[slabW, THICK, slabD]} />
+      <mesh geometry={geo} rotation={[Math.PI / 2, 0, 0]}>
         <meshBasicMaterial
           color={PALETTE.slab}
+          side={THREE.DoubleSide}
           polygonOffset
           polygonOffsetFactor={1}
           polygonOffsetUnits={1}

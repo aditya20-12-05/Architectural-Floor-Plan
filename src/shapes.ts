@@ -1,6 +1,8 @@
 // Room shapes as normalized polygons (centred on origin, scaled to unit area).
 // A room's real footprint = its shape scaled by sqrt(areaSqFt), rotated, placed.
 
+import { SLAB_ASPECT } from './constants'
+
 export type Pt = [number, number]
 
 export interface RoomShape {
@@ -82,6 +84,57 @@ export const DEFAULT_SHAPE = SHAPE_PRESETS[0]
 
 export function shapeByName(name: string | undefined): RoomShape {
   return SHAPE_PRESETS.find((s) => s.name === name) ?? DEFAULT_SHAPE
+}
+
+// Whole-floor "plate" shapes. Default is the 1.6:1 rectangle (matches the
+// historic slab); plus a few non-rectangular building footprints.
+export const SLAB_PRESETS: RoomShape[] = [
+  { name: 'Rectangle', points: normalizeShape(rect(SLAB_ASPECT, 1)) },
+  { name: 'Square', points: normalizeShape(rect(1, 1)) },
+  { name: 'Wide', points: normalizeShape(rect(2.4, 1)) },
+  {
+    name: 'L-Shape',
+    points: normalizeShape([
+      [-0.6, -0.42],
+      [0.6, -0.42],
+      [0.6, 0.08],
+      [0.0, 0.08],
+      [0.0, 0.42],
+      [-0.6, 0.42],
+    ]),
+  },
+  {
+    name: 'U-Shape',
+    points: normalizeShape([
+      [-0.6, -0.42],
+      [0.6, -0.42],
+      [0.6, 0.42],
+      [0.24, 0.42],
+      [0.24, -0.04],
+      [-0.24, -0.04],
+      [-0.24, 0.42],
+      [-0.6, 0.42],
+    ]),
+  },
+  {
+    name: 'T-Shape',
+    points: normalizeShape([
+      [-0.6, -0.42],
+      [0.6, -0.42],
+      [0.6, -0.04],
+      [0.18, -0.04],
+      [0.18, 0.42],
+      [-0.18, 0.42],
+      [-0.18, -0.04],
+      [-0.6, -0.04],
+    ]),
+  },
+]
+
+export const DEFAULT_SLAB_POINTS = SLAB_PRESETS[0].points
+
+export function slabShapeByName(name: string | undefined): RoomShape {
+  return SLAB_PRESETS.find((s) => s.name === name) ?? SLAB_PRESETS[0]
 }
 
 // Scale (by s), rotate (rot radians), translate to (px,pz) -> world polygon.

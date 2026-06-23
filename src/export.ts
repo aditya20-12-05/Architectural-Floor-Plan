@@ -203,12 +203,7 @@ function drawPlan(
 
   const slabW = layout.slabW
   const slabD = layout.slabD
-  const slab: P2[] = [
-    { x: -slabW / 2, y: -slabD / 2 },
-    { x: slabW / 2, y: -slabD / 2 },
-    { x: slabW / 2, y: slabD / 2 },
-    { x: -slabW / 2, y: slabD / 2 },
-  ]
+  const slab: P2[] = layout.slabPoly.map(([x, z]) => ({ x, y: z }))
 
   // fit transform over slab + every room (top & bottom)
   let minX = Infinity

@@ -54,7 +54,7 @@ export default function Scene({
     <>
       <color attach="background" args={[PALETTE.bg]} />
       <ambientLight intensity={1} />
-      <FloorSlab slabW={layout.slabW} slabD={layout.slabD} />
+      <FloorSlab slabPoly={layout.slabPoly} />
       {config.view.grid && <FloorGrid slabW={layout.slabW} slabD={layout.slabD} />}
       <WalkwayLayer
         walkways={config.walkways}

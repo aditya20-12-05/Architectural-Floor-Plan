@@ -1,6 +1,14 @@
 import { FloorConfig, Room } from './types'
-import { SLAB_ASPECT, CORRIDOR_MIN_FT, CORRIDOR_MAX_FT } from './constants'
-import { Pt, bbox, shapeToWorld, shapeByName, doorEdgeIndex, normalizeShape } from './shapes'
+import { CORRIDOR_MIN_FT, CORRIDOR_MAX_FT } from './constants'
+import {
+  Pt,
+  bbox,
+  shapeToWorld,
+  shapeByName,
+  doorEdgeIndex,
+  normalizeShape,
+  DEFAULT_SLAB_POINTS,
+} from './shapes'
 
 export interface RoomFootprint {
   id: string
@@ -33,6 +41,7 @@ export interface Entrance {
 export interface Layout {
   slabW: number
   slabD: number
+  slabPoly: Pt[]
   corridorWidth: number
   corridors: CorridorSeg[]
   entrance: Entrance
@@ -62,9 +71,17 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v))
 }
 
-function slabDims(carpet: number): { slabW: number; slabD: number } {
-  const c = Math.max(carpet, 1)
-  return { slabW: Math.sqrt(c * SLAB_ASPECT), slabD: Math.sqrt(c / SLAB_ASPECT) }
+// Whole-floor plate polygon (world ft) + its bounding dimensions. A normalized
+// unit-area shape scaled by sqrt(carpet) keeps the plate area == carpet area.
+function slabShape(config: FloorConfig): { poly: Pt[]; slabW: number; slabD: number } {
+  const base =
+    config.slabPoints && config.slabPoints.length >= 3
+      ? (config.slabPoints as Pt[])
+      : DEFAULT_SLAB_POINTS
+  const s = Math.sqrt(Math.max(config.carpetArea, 1))
+  const poly = base.map(([x, z]) => [x * s, z * s] as Pt)
+  const bb = bbox(poly)
+  return { poly, slabW: bb.maxX - bb.minX, slabD: bb.maxZ - bb.minZ }
 }
 
 function corridorW(config: FloorConfig, slabW: number, slabD: number): number {
@@ -98,7 +115,7 @@ function shapeFootprint(room: Room, attractors: Pt[]): RoomFootprint {
 
 // Renders only PLACED rooms (px/pz set). Unplaced rooms are "in the menu".
 export function computeLayout(config: FloorConfig): Layout {
-  const { slabW, slabD } = slabDims(config.carpetArea)
+  const { poly: slabPoly, slabW, slabD } = slabShape(config)
   const corridorWidth = corridorW(config, slabW, slabD)
   const attractors: Pt[] =
     config.walkways.length > 0
@@ -115,6 +132,7 @@ export function computeLayout(config: FloorConfig): Layout {
   return {
     slabW,
     slabD,
+    slabPoly,
     corridorWidth,
     corridors,
     entrance,
@@ -146,7 +164,7 @@ export function overlappingIds(fps: RoomFootprint[]): Set<string> {
 
 // Double-loaded band slots for all rooms (used by auto-arrange).
 function bandSlots(config: FloorConfig): Slot[] {
-  const { slabW, slabD } = slabDims(config.carpetArea)
+  const { slabW, slabD } = slabShape(config)
   const corridorWidth = corridorW(config, slabW, slabD)
   const bandD = (slabD - corridorWidth) / 2
   const rooms = config.rooms.filter((r) => r.area > 0)

@@ -115,5 +115,9 @@ export function normalizeConfig(input: any): FloorConfig {
     walkways,
     view,
     title,
+    slabShapeName: typeof input?.slabShapeName === 'string' ? input.slabShapeName : undefined,
+    slabPoints: Array.isArray(input?.slabPoints)
+      ? (input.slabPoints as [number, number][])
+      : undefined,
   }
 }

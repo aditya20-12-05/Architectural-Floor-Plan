@@ -60,4 +60,8 @@ export interface FloorConfig {
   walkways: Walkway[]
   view: ViewToggles
   title: TitleBlockInfo
+  // Shape of the whole floor plate, as a normalized unit-area polygon (scaled
+  // by sqrt(carpetArea)). Unset = the default 1.6:1 rectangle.
+  slabShapeName?: string
+  slabPoints?: [number, number][]
 }

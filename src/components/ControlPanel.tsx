@@ -3,7 +3,7 @@ import { FloorConfig, Category, ViewToggles } from '../types'
 import { Action } from '../state'
 import { AreaSummary } from '../layout'
 import { roomNo } from '../constants'
-import { SHAPE_PRESETS, shapeByName } from '../shapes'
+import { SHAPE_PRESETS, shapeByName, SLAB_PRESETS, slabShapeByName } from '../shapes'
 
 interface Props {
   config: FloorConfig
@@ -168,6 +168,22 @@ export default function ControlPanel({
       {/* Floor areas */}
       <div className="section">
         <h3>Floor</h3>
+        <div className="field-row">
+          <label>Plot shape</label>
+          <select
+            value={config.slabShapeName ?? 'Rectangle'}
+            onChange={(e) => {
+              const sh = slabShapeByName(e.target.value)
+              dispatch({ type: 'setSlabShape', shapeName: sh.name, points: sh.points })
+            }}
+          >
+            {SLAB_PRESETS.map((s) => (
+              <option key={s.name} value={s.name}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="field-row">
           <label>Built-up (sq ft)</label>
           <NumberInput
