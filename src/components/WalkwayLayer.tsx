@@ -88,18 +88,21 @@ interface Props {
   slabW: number
   slabD: number
   active: boolean
+  selectedId: string | null
   onAdd: (w: Walkway) => void
-  onRemove: (id: string) => void
+  onSelect: (id: string | null) => void
 }
 
 function WalkSeg({
   wk,
   active,
-  onRemove,
+  selected,
+  onSelect,
 }: {
   wk: Walkway
   active: boolean
-  onRemove: (id: string) => void
+  selected: boolean
+  onSelect: (id: string | null) => void
 }) {
   const center = useMemo(() => samplePath(wk.points as Vec2[]), [wk.points])
   const geo = useMemo(() => {
@@ -127,16 +130,25 @@ function WalkSeg({
           active
             ? (e) => {
                 e.stopPropagation()
-                onRemove(wk.id)
+                onSelect(wk.id)
               }
             : undefined
         }
         onPointerOver={active ? () => (document.body.style.cursor = 'pointer') : undefined}
         onPointerOut={active ? () => (document.body.style.cursor = 'default') : undefined}
       >
-        <meshBasicMaterial color={PALETTE.accent} transparent opacity={0.1} side={THREE.DoubleSide} />
+        <meshBasicMaterial
+          color={PALETTE.accent}
+          transparent
+          opacity={selected ? 0.24 : 0.1}
+          side={THREE.DoubleSide}
+        />
       </mesh>
-      <Line points={centerLine} color={PALETTE.accent} lineWidth={1.4} dashed dashSize={2.2} gapSize={1.6} />
+      {selected ? (
+        <Line points={centerLine} color={PALETTE.accent} lineWidth={2.4} />
+      ) : (
+        <Line points={centerLine} color={PALETTE.accent} lineWidth={1.4} dashed dashSize={2.2} gapSize={1.6} />
+      )}
     </group>
   )
 }
@@ -161,7 +173,15 @@ function GhostSeg({ seg }: { seg: Vec2[] }) {
   )
 }
 
-export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, onRemove }: Props) {
+export default function WalkwayLayer({
+  walkways,
+  slabW,
+  slabD,
+  active,
+  selectedId,
+  onAdd,
+  onSelect,
+}: Props) {
   const camera = useThree((s) => s.camera)
   const gl = useThree((s) => s.gl)
   const drawRef = useRef({ drawing: false, sx: 0, sz: 0 })
@@ -174,6 +194,7 @@ export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, on
   const startDraw = (e: ThreeEvent<PointerEvent>) => {
     if (!active) return
     e.stopPropagation()
+    onSelect(null) // clicking empty base deselects + begins a new draw
     drawRef.current = { drawing: true, sx: e.point.x, sz: e.point.z }
     setGhost([
       [e.point.x, e.point.z],
@@ -226,7 +247,13 @@ export default function WalkwayLayer({ walkways, slabW, slabD, active, onAdd, on
   return (
     <group>
       {walkways.map((wk) => (
-        <WalkSeg key={wk.id} wk={wk} active={active} onRemove={onRemove} />
+        <WalkSeg
+          key={wk.id}
+          wk={wk}
+          active={active}
+          selected={selectedId === wk.id}
+          onSelect={onSelect}
+        />
       ))}
 
       {ghost && Math.hypot(ghost[1][0] - ghost[0][0], ghost[1][1] - ghost[0][1]) > 0.5 && (

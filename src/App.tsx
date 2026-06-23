@@ -26,6 +26,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [editTool, setEditTool] = useState<'move' | 'walkway'>('move')
+  const [selectedWalkwayId, setSelectedWalkwayId] = useState<string | null>(null)
   const [showWelcome, setShowWelcome] = useState(() => {
     try {
       return !localStorage.getItem(WELCOME_KEY)
@@ -64,6 +65,15 @@ export default function App() {
     if (selectedId && !config.rooms.some((r) => r.id === selectedId)) setSelectedId(null)
   }, [config.rooms, selectedId])
 
+  // Drop walkway selection if it was removed or the walkway tool is inactive.
+  useEffect(() => {
+    if (selectedWalkwayId && !config.walkways.some((w) => w.id === selectedWalkwayId))
+      setSelectedWalkwayId(null)
+  }, [config.walkways, selectedWalkwayId])
+  useEffect(() => {
+    if (!walkwayActive) setSelectedWalkwayId(null)
+  }, [walkwayActive])
+
   // Keyboard shortcuts (ignored while typing in a field).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -83,6 +93,13 @@ export default function App() {
       }
       if (e.key === 'Escape') {
         setSelectedId(null)
+        setSelectedWalkwayId(null)
+        return
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedWalkwayId) {
+        e.preventDefault()
+        removeWalkway(selectedWalkwayId)
+        setSelectedWalkwayId(null)
         return
       }
       const room = config.rooms.find((r) => r.id === selectedId)
@@ -113,7 +130,8 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [config, selectedId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, selectedId, selectedWalkwayId])
 
   const reset = () => {
     if (handlesRef.current)
@@ -239,7 +257,8 @@ export default function App() {
             onSelect={setSelectedId}
             onPlace={placeRoom}
             onAddWalkway={addWalkway}
-            onRemoveWalkway={removeWalkway}
+            selectedWalkwayId={selectedWalkwayId}
+            onSelectWalkway={setSelectedWalkwayId}
             onSetRot={setRot}
             onSetShape={setShape}
             onSetDoor={setDoor}
@@ -331,7 +350,7 @@ export default function App() {
         {mode === 'edit' && (
           <div className="edit-hint">
             {editTool === 'walkway'
-              ? 'Walkway tool · drag from start to end to draw a walkway path (chain several for L / U routes); click a walkway to erase it.'
+              ? 'Walkway tool · drag from start to end to draw a walkway path (chain several for L / U routes); click a walkway to select it, then Delete to remove.'
               : 'Edit · drag a room to move it; click to select, then drag white corners to reshape (area kept), the round handle to rotate, or the blue door to move the doorway to any wall. Keys: R rotate · arrows nudge · Delete remove · Esc deselect · ⌘/Ctrl+Z undo.'}
           </div>
         )}

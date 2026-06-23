@@ -21,7 +21,8 @@ interface Props {
   onSelect: (id: string) => void
   onPlace: (id: string, px: number, pz: number) => void
   onAddWalkway: (w: Walkway) => void
-  onRemoveWalkway: (id: string) => void
+  selectedWalkwayId: string | null
+  onSelectWalkway: (id: string | null) => void
   onSetRot: (id: string, rot: number) => void
   onSetShape: (id: string, points: Pt[]) => void
   onSetDoor: (id: string, doorEdge: number, doorT: number) => void
@@ -40,7 +41,8 @@ export default function Scene({
   onSelect,
   onPlace,
   onAddWalkway,
-  onRemoveWalkway,
+  selectedWalkwayId,
+  onSelectWalkway,
   onSetRot,
   onSetShape,
   onSetDoor,
@@ -61,8 +63,9 @@ export default function Scene({
         slabW={layout.slabW}
         slabD={layout.slabD}
         active={walkwayActive}
+        selectedId={selectedWalkwayId}
         onAdd={onAddWalkway}
-        onRemove={onRemoveWalkway}
+        onSelect={onSelectWalkway}
       />
       <RoomsLayer
         layout={layout}
