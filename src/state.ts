@@ -10,6 +10,8 @@ export type Action =
   | { type: 'updateRoom'; id: string; patch: Partial<Room> }
   | { type: 'reorder'; order: string[] }
   | { type: 'swap'; a: string; b: string }
+  | { type: 'placeRoom'; id: string; px: number; pz: number; pw: number; pd: number }
+  | { type: 'resetLayout' }
   | { type: 'toggleView'; key: keyof ViewToggles }
   | { type: 'setTitle'; field: keyof TitleBlockInfo; value: string }
   | { type: 'import'; config: unknown }
@@ -64,6 +66,29 @@ export function reducer(state: FloorConfig, action: Action): FloorConfig {
       arr[j] = tmp
       return { ...state, rooms: arr }
     }
+
+    case 'placeRoom':
+      return {
+        ...state,
+        rooms: state.rooms.map((r) =>
+          r.id === action.id
+            ? { ...r, px: action.px, pz: action.pz, pw: action.pw, pd: action.pd }
+            : r
+        ),
+      }
+
+    case 'resetLayout':
+      return {
+        ...state,
+        rooms: state.rooms.map((r) => {
+          const { px, pz, pw, pd, ...rest } = r
+          void px
+          void pz
+          void pw
+          void pd
+          return rest
+        }),
+      }
 
     case 'toggleView':
       return { ...state, view: { ...state.view, [action.key]: !state.view[action.key] } }

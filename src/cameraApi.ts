@@ -27,6 +27,24 @@ export function defaultCameraPosition(
   return [p.x, p.y, p.z]
 }
 
+export function frameTopDown(handles: ThreeHandles, slabW: number, slabD: number): void {
+  const { camera, controls } = handles
+  const dist = Math.max(slabW, slabD) * 1.35 + 20
+  const target = new THREE.Vector3(0, 0, 0)
+  // Near-overhead with a slight tilt (avoids the gimbal at the exact pole).
+  camera.position.set(0, dist, dist * 0.08)
+  camera.up.set(0, 1, 0)
+  camera.near = 0.1
+  camera.far = dist * 6
+  camera.updateProjectionMatrix()
+  if (controls) {
+    controls.target.copy(target)
+    controls.update()
+  } else {
+    camera.lookAt(target)
+  }
+}
+
 export function frameCamera(
   handles: ThreeHandles,
   slabW: number,

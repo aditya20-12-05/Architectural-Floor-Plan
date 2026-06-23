@@ -85,10 +85,29 @@ export function computeLayout(config: FloorConfig): Layout {
   const northCz = corridorWidth / 2 + bandD / 2
   const southCz = -(corridorWidth / 2 + bandD / 2)
 
-  const footprints: RoomFootprint[] = [
+  const autoFootprints: RoomFootprint[] = [
     ...layBand(north, northCz, bandD, slabW, 'minZ', 'north'),
     ...layBand(south, southCz, bandD, slabW, 'maxZ', 'south'),
   ]
+
+  // Apply manual placement overrides: a room with px/pz/pw/pd sits where the
+  // user put it; the rest keep their auto-arranged slots.
+  const byId = new Map(autoFootprints.map((f) => [f.id, f]))
+  for (const r of config.rooms) {
+    if (r.px != null && r.pz != null && r.pw != null && r.pd != null) {
+      const existing = byId.get(r.id)
+      byId.set(r.id, {
+        id: r.id,
+        cx: r.px,
+        cz: r.pz,
+        w: r.pw,
+        d: r.pd,
+        corridorSide: existing?.corridorSide ?? 'minZ',
+        band: existing?.band ?? 'north',
+      })
+    }
+  }
+  const footprints = Array.from(byId.values())
 
   const corridors: CorridorSeg[] = [{ cx: 0, cz: 0, w: slabW, d: corridorWidth, axis: 'x' }]
   const entrance: Entrance = { x: slabW / 2, z: 0, width: corridorWidth, dir: -1 }

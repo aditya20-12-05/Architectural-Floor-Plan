@@ -17,8 +17,10 @@ interface Props {
   wallHeight: number
   selectedId: string | null
   onSelect: (id: string) => void
-  onSwap: (a: string, b: string) => void
+  onPlace: (id: string, px: number, pz: number, pw: number, pd: number) => void
 }
+
+const SNAP = 1 // ft
 
 interface DragState {
   id: string | null
@@ -36,7 +38,7 @@ export default function RoomsLayer({
   wallHeight,
   selectedId,
   onSelect,
-  onSwap,
+  onPlace,
 }: Props) {
   const camera = useThree((s) => s.camera)
   const gl = useThree((s) => s.gl)
@@ -50,14 +52,12 @@ export default function RoomsLayer({
 
   // --- block drag-to-move ---------------------------------------------------
   const dragRef = useRef<DragState>({ id: null, active: false, sx: 0, sy: 0, x: 0, z: 0 })
-  const dropRef = useRef<string | null>(null)
   const fpRef = useRef(layout.footprints)
   fpRef.current = layout.footprints
-  const cbRef = useRef({ onSelect, onSwap })
-  cbRef.current = { onSelect, onSwap }
+  const cbRef = useRef({ onSelect, onPlace })
+  cbRef.current = { onSelect, onPlace }
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dropId, setDropId] = useState<string | null>(null)
 
   const raycaster = useMemo(() => new THREE.Raycaster(), [])
   const floorPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
@@ -94,30 +94,21 @@ export default function RoomsLayer({
         drag.x = point.x
         drag.z = point.z
       }
-      let target: string | null = null
-      for (const f of fpRef.current) {
-        if (f.id === drag.id) continue
-        if (Math.abs(drag.x - f.cx) <= f.w / 2 && Math.abs(drag.z - f.cz) <= f.d / 2) {
-          target = f.id
-          break
-        }
-      }
-      if (dropRef.current !== target) {
-        dropRef.current = target
-        setDropId(target)
-      }
       document.body.style.cursor = 'grabbing'
     }
 
     const onUp = () => {
       const drag = dragRef.current
-      if (drag.id && drag.active && dropRef.current && dropRef.current !== drag.id) {
-        cbRef.current.onSwap(drag.id, dropRef.current)
+      if (drag.id && drag.active) {
+        const fp = fpRef.current.find((f) => f.id === drag.id)
+        if (fp) {
+          const px = Math.round(drag.x / SNAP) * SNAP
+          const pz = Math.round(drag.z / SNAP) * SNAP
+          cbRef.current.onPlace(drag.id, px, pz, fp.w, fp.d)
+        }
       }
       dragRef.current = { id: null, active: false, sx: 0, sy: 0, x: 0, z: 0 }
-      dropRef.current = null
       setDraggingId(null)
-      setDropId(null)
       if (controls) controls.enabled = true
       document.body.style.cursor = 'default'
     }
@@ -136,8 +127,7 @@ export default function RoomsLayer({
         const fp = fpById.get(room.id)
         if (!fp) return null
         const isDragging = draggingId === room.id
-        const isDrop = dropId === room.id
-        const highlight = room.flagship || selectedId === room.id || isDragging || isDrop
+        const highlight = room.flagship || selectedId === room.id || isDragging
         return (
           <group key={room.id}>
             <RoomCell

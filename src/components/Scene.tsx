@@ -16,7 +16,7 @@ interface Props {
   config: FloorConfig
   selectedId: string | null
   onSelect: (id: string) => void
-  onSwap: (a: string, b: string) => void
+  onPlace: (id: string, px: number, pz: number, pw: number, pd: number) => void
   handlesRef: React.MutableRefObject<ThreeHandles | null>
   onSnapIso: () => void
   onReady: () => void
@@ -27,7 +27,7 @@ export default function Scene({
   config,
   selectedId,
   onSelect,
-  onSwap,
+  onPlace,
   handlesRef,
   onSnapIso,
   onReady,
@@ -47,7 +47,7 @@ export default function Scene({
         wallHeight={config.wallHeight}
         selectedId={selectedId}
         onSelect={onSelect}
-        onSwap={onSwap}
+        onPlace={onPlace}
       />
       <Dimensions slabW={layout.slabW} slabD={layout.slabD} />
       <NorthArrow slabW={layout.slabW} slabD={layout.slabD} />

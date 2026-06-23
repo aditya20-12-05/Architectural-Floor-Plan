@@ -4,7 +4,7 @@ import { reducer } from './state'
 import { loadConfig, saveConfig } from './storage'
 import { computeLayout, summarizeAreas } from './layout'
 import { AREA_TOLERANCE } from './constants'
-import { ThreeHandles, frameCamera, defaultCameraPosition } from './cameraApi'
+import { ThreeHandles, frameCamera, frameTopDown, defaultCameraPosition } from './cameraApi'
 import { exportViewPNG, exportConfigJSON, readConfigFile } from './export'
 import { normalizeConfig } from './storage'
 import Scene from './components/Scene'
@@ -15,6 +15,7 @@ import TitleBlock from './components/TitleBlock'
 export default function App() {
   const [config, dispatch] = useReducer(reducer, undefined, loadConfig)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [mode, setMode] = useState<'view' | 'edit'>('view')
   const handlesRef = useRef<ThreeHandles | null>(null)
 
   const layout = useMemo(
@@ -64,7 +65,26 @@ export default function App() {
     setSelectedId(null)
     dispatch({ type: 'loadSample' })
   }
-  const swapRooms = (a: string, b: string) => dispatch({ type: 'swap', a, b })
+  const placeRoom = (id: string, px: number, pz: number, pw: number, pd: number) =>
+    dispatch({ type: 'placeRoom', id, px, pz, pw, pd })
+  const resetLayout = () => dispatch({ type: 'resetLayout' })
+
+  const enterEdit = () => {
+    setMode('edit')
+    const h = handlesRef.current
+    if (h) {
+      frameTopDown(h, layout.slabW, layout.slabD)
+      if (h.controls) h.controls.enableRotate = false
+    }
+  }
+  const enterView = () => {
+    setMode('view')
+    const h = handlesRef.current
+    if (h) {
+      frameCamera(h, layout.slabW, layout.slabD, config.wallHeight, false)
+      if (h.controls) h.controls.enableRotate = !config.view.lockIso
+    }
+  }
 
   // Initial camera placement (re-framing afterwards is via the toolbar).
   const initialCam = useMemo(
@@ -99,7 +119,7 @@ export default function App() {
             config={config}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            onSwap={swapRooms}
+            onPlace={placeRoom}
             handlesRef={handlesRef}
             onSnapIso={snapIso}
             onReady={handleReady}
@@ -107,15 +127,36 @@ export default function App() {
         </Canvas>
 
         <div className="cam-toolbar">
-          <button onClick={reset}>Reset View</button>
-          <button onClick={snapIso}>Isometric</button>
-          <button
-            className={config.view.lockIso ? 'primary' : ''}
-            onClick={() => dispatch({ type: 'toggleView', key: 'lockIso' })}
-          >
-            {config.view.lockIso ? 'Locked' : 'Lock Iso'}
-          </button>
+          {mode === 'view' ? (
+            <>
+              <button onClick={reset}>Reset View</button>
+              <button onClick={snapIso}>Isometric</button>
+              <button
+                className={config.view.lockIso ? 'primary' : ''}
+                onClick={() => dispatch({ type: 'toggleView', key: 'lockIso' })}
+              >
+                {config.view.lockIso ? 'Locked' : 'Lock Iso'}
+              </button>
+              <button className="primary" onClick={enterEdit}>
+                Edit Layout
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={resetLayout}>Reset Layout</button>
+              <button className="primary" onClick={enterView}>
+                Done · 3D View
+              </button>
+            </>
+          )}
         </div>
+
+        {mode === 'edit' && (
+          <div className="edit-hint">
+            Edit mode · drag a room to move it (snaps to grid). Walkway drawing and
+            drag-from-menu are coming next.
+          </div>
+        )}
 
         {config.view.schedule && (
           <RoomSchedule rooms={config.rooms} selectedId={selectedId} onSelect={setSelectedId} />

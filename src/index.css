@@ -391,6 +391,25 @@ button.danger:hover {
   background: #fff;
 }
 
+/* Edit-mode hint */
+.edit-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 5;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--accent);
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  padding: 8px 14px;
+  border-radius: 4px;
+  backdrop-filter: blur(3px);
+  max-width: 70%;
+  text-align: center;
+}
+
 /* Title block overlay */
 .title-block {
   position: absolute;

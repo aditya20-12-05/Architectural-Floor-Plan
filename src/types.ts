@@ -6,6 +6,11 @@ export interface Room {
   area: number // sq ft
   category: Category
   flagship: boolean
+  // Manual placement on the base (feet). When set, overrides the auto layout.
+  px?: number
+  pz?: number
+  pw?: number
+  pd?: number
 }
 
 export interface ViewToggles {
